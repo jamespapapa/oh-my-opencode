@@ -36,6 +36,9 @@ import {
   createCompactionContextInjector,
   createUnstableAgentBabysitterHook,
   createPreemptiveCompactionHook,
+  createTextToolParserHook,
+  createToolCallInstructionInjectorHook,
+  createClosednetToolGuideHook,
 } from "./hooks";
 import {
   contextCollector,
@@ -271,6 +274,22 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
   const questionLabelTruncator = createQuestionLabelTruncatorHook();
   const subagentQuestionBlocker = createSubagentQuestionBlockerHook();
+
+  const textToolParser = isHookEnabled("text-tool-parser")
+    ? createTextToolParserHook(ctx, {
+        enabled: true,
+        autoContinue: true,
+        workdir: ctx.directory,
+      })
+    : null;
+
+  const toolCallInstructionInjector = isHookEnabled("tool-call-instruction-injector")
+    ? createToolCallInstructionInjectorHook(ctx)
+    : null;
+
+  const closednetToolGuide = isHookEnabled("closednet-tool-guide")
+    ? createClosednetToolGuideHook(ctx)
+    : null;
 
   const taskResumeInfo = createTaskResumeInfoHook();
 
@@ -606,6 +625,16 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       ]?.(input, output as any);
     },
 
+    "experimental.chat.system.transform": async (
+      input: { sessionID?: string; model: unknown },
+      output: { system: string[] }
+    ) => {
+      const transformInput = { sessionID: input.sessionID ?? "" };
+      await textToolParser?.["experimental.chat.system.transform"]?.(transformInput, output);
+      await toolCallInstructionInjector?.["experimental.chat.system.transform"]?.(transformInput, output);
+      await closednetToolGuide?.["experimental.chat.system.transform"]?.(transformInput, output);
+    },
+
     config: configHandler,
 
     event: async (input) => {
@@ -627,6 +656,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await ralphLoop?.event(input);
       await stopContinuationGuard?.event(input);
       await atlasHook?.handler(input);
+      await textToolParser?.event(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;

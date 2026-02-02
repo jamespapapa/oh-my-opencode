@@ -37,3 +37,8 @@ export { createStopContinuationGuardHook, type StopContinuationGuard } from "./s
 export { createCompactionContextInjector, type SummarizeContext } from "./compaction-context-injector";
 export { createUnstableAgentBabysitterHook } from "./unstable-agent-babysitter";
 export { createPreemptiveCompactionHook } from "./preemptive-compaction";
+
+// Closed network (Samsung Life) specific hooks
+export { createTextToolParserHook, type TextToolParserConfig } from "./text-tool-parser";
+export { createToolCallInstructionInjectorHook, type ToolCallInstructionInjectorConfig, TOOL_CALL_INSTRUCTIONS } from "./tool-call-instruction-injector";
+export { createClosednetToolGuideHook, type ClosednetToolGuideConfig, CLOSEDNET_TOOL_GUIDE } from "./closednet-tool-guide";

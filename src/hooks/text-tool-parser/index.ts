@@ -1,0 +1,155 @@
+import type { PluginInput } from "@opencode-ai/plugin"
+import type { TextToolParserConfig } from "./types"
+import { parseToolCalls, hasToolCalls } from "./parser"
+import { executeToolCall, formatToolResult } from "./executors"
+import { SUBAGENT_TOOL_INSTRUCTIONS } from "./prompt"
+
+interface TextToolParserContext {
+  ctx: PluginInput
+  config: TextToolParserConfig
+}
+
+interface MessageInfo {
+  id?: string
+  role?: string
+  sessionID?: string
+}
+
+interface EventProperties {
+  info?: MessageInfo
+}
+
+interface TextPart {
+  type: "text"
+  text: string
+}
+
+interface MessagePart {
+  type: string
+  text?: string
+}
+
+export interface TextToolParserHook {
+  event: (input: { event: { type: string; properties: unknown } }) => Promise<void>
+  "experimental.chat.system.transform": (
+    input: { sessionID: string },
+    output: { system: string[] }
+  ) => Promise<void>
+}
+
+export function createTextToolParserHook(
+  ctx: PluginInput,
+  config?: Partial<TextToolParserConfig>
+): TextToolParserHook {
+  const fullConfig: TextToolParserConfig = {
+    enabled: true,
+    autoContinue: true,
+    workdir: ctx.directory,
+    ...config,
+  }
+
+  if (!fullConfig.enabled) {
+    return {
+      event: async () => {},
+      "experimental.chat.system.transform": async () => {},
+    }
+  }
+
+  const context: TextToolParserContext = { ctx, config: fullConfig }
+  const processedMessages = new Set<string>()
+
+  return {
+    event: async (input) => {
+      const { event } = input
+      const props = event.properties as EventProperties | undefined
+
+      if (event.type !== "message.updated") return
+
+      const info = props?.info
+      if (!info?.sessionID || info.role !== "assistant" || !info.id) return
+
+      const messageKey = `${info.sessionID}:${info.id}`
+      if (processedMessages.has(messageKey)) return
+
+      await processAssistantMessage(context, info.sessionID, info.id, processedMessages, messageKey)
+    },
+
+    "experimental.chat.system.transform": async (_input, output) => {
+      output.system.push(SUBAGENT_TOOL_INSTRUCTIONS)
+    },
+  }
+}
+
+async function processAssistantMessage(
+  context: TextToolParserContext,
+  sessionID: string,
+  messageID: string,
+  processedMessages: Set<string>,
+  messageKey: string
+): Promise<void> {
+  const { ctx, config } = context
+
+  try {
+    const messagesResp = await ctx.client.session.messages({
+      path: { id: sessionID },
+      query: { directory: ctx.directory },
+    })
+
+    const messages = (messagesResp as { data?: Array<{ info?: MessageInfo; parts?: MessagePart[] }> }).data
+    if (!messages) return
+
+    const targetMessage = messages.find((m) => m.info?.id === messageID)
+    if (!targetMessage?.parts) return
+
+    const textParts = targetMessage.parts.filter((p): p is TextPart => p.type === "text" && !!p.text)
+    const fullText = textParts.map((p) => p.text).join("\n")
+
+    if (!hasToolCalls(fullText)) return
+
+    processedMessages.add(messageKey)
+
+    const toolCalls = parseToolCalls(fullText)
+    if (toolCalls.length === 0) return
+
+    await ctx.client.session.abort({ path: { id: sessionID } }).catch(() => {})
+
+    const results: string[] = []
+    
+    for (const toolCall of toolCalls) {
+      if (config.allowedTools?.length && !config.allowedTools.includes(toolCall.name)) {
+        results.push(formatToolResult(toolCall, {
+          success: false,
+          output: "",
+          error: `Tool "${toolCall.name}" is not allowed`,
+        }))
+        continue
+      }
+
+      const result = await executeToolCall(toolCall, config.workdir || ctx.directory)
+      results.push(formatToolResult(toolCall, result))
+    }
+
+    const toolResultsText = results.join("\n\n")
+
+    if (config.autoContinue) {
+      const continuePrompt = `[TOOL EXECUTION RESULTS]
+
+The following tools were executed based on your previous instructions:
+
+${toolResultsText}
+
+Continue your work based on these results. If all tasks are complete, summarize what was done.
+If there were errors, address them and retry if appropriate.`
+
+      await ctx.client.session.prompt({
+        path: { id: sessionID },
+        body: { parts: [{ type: "text", text: continuePrompt }] },
+        query: { directory: ctx.directory },
+      })
+    }
+  } catch (error) {
+    console.error("[text-tool-parser] Error processing message:", error)
+  }
+}
+
+export type { TextToolParserConfig }
