@@ -10,6 +10,7 @@ import { createMetisAgent, metisPromptMetadata } from "./metis"
 import { createAtlasAgent, atlasPromptMetadata } from "./atlas"
 import { createMomusAgent, momusPromptMetadata } from "./momus"
 import { createHephaestusAgent } from "./hephaestus"
+import { ultraworkAgent } from "./ultrawork"
 import type { AvailableAgent, AvailableCategory, AvailableSkill } from "./dynamic-agent-prompt-builder"
 import { deepMerge, fetchAvailableModels, resolveModelPipeline, AGENT_MODEL_REQUIREMENTS, readConnectedProvidersCache, isModelAvailable, isAnyFallbackModelAvailable } from "../shared"
 import { DEFAULT_CATEGORIES, CATEGORY_DESCRIPTIONS } from "../tools/delegate-task/constants"
@@ -17,6 +18,24 @@ import { resolveMultipleSkills } from "../features/opencode-skill-loader/skill-c
 import { createBuiltinSkills } from "../features/builtin-skills"
 import type { LoadedSkill, SkillScope } from "../features/opencode-skill-loader/types"
 import type { BrowserAutomationProvider } from "../config/schema"
+import { SUBAGENT_TOOL_INSTRUCTIONS } from "../hooks/text-tool-parser/prompt"
+
+const KOREAN_RESPONSE_INSTRUCTION = `<CRITICAL_LANGUAGE_RULE>
+**모든 응답은 반드시 한국어로 작성하세요. 영어로 응답하지 마세요.**
+
+- 사용자에게 말할 때: 한국어
+- 에이전트에게 지시할 때: 한국어
+- 코드 주석: 한국어 (필수적인 경우만)
+- 커밋 메시지: 한국어
+- 에러 메시지 설명: 한국어
+
+**예외**: 코드 자체, 변수명, 함수명, 영어 기술 용어는 영어 유지
+</CRITICAL_LANGUAGE_RULE>
+`
+
+export function getKoreanInstruction(): string {
+  return KOREAN_RESPONSE_INSTRUCTION
+}
 
 type AgentSource = AgentFactory | AgentConfig
 
@@ -29,9 +48,8 @@ const agentSources: Record<BuiltinAgentName, AgentSource> = {
   "multimodal-looker": createMultimodalLookerAgent,
   metis: createMetisAgent,
   momus: createMomusAgent,
-  // Note: Atlas is handled specially in createBuiltinAgents()
-  // because it needs OrchestratorContext, not just a model string
   atlas: createAtlasAgent as unknown as AgentFactory,
+  ultrawork: ultraworkAgent,
 }
 
 /**
@@ -86,6 +104,10 @@ export function buildAgent(
       const skillContent = Array.from(resolved.values()).join("\n\n")
       base.prompt = skillContent + (base.prompt ? "\n\n" + base.prompt : "")
     }
+  }
+
+  if (base.prompt) {
+    base.prompt = getKoreanInstruction() + SUBAGENT_TOOL_INSTRUCTIONS + "\n\n" + base.prompt
   }
 
   return base
