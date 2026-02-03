@@ -35,10 +35,10 @@ describe("task_tool", () => {
     taskTool = createTask(TEST_CONFIG)
   })
 
-  async function createTestTask(title: string, overrides: Partial<Parameters<typeof taskTool.execute>[0]> = {}): Promise<string> {
+  async function createTestTask(subject: string, overrides: Partial<Parameters<typeof taskTool.execute>[0]> = {}): Promise<string> {
     const args = {
       action: "create" as const,
-      title,
+      subject,
       ...overrides,
     }
     const resultStr = await taskTool.execute(args, TEST_CONTEXT)
@@ -57,11 +57,11 @@ describe("task_tool", () => {
   // ============================================================================
 
   describe("create action", () => {
-    test("creates task with required title field", async () => {
+    test("creates task with required subject field", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Implement authentication",
+        subject: "Implement authentication",
       }
 
       //#when
@@ -71,15 +71,15 @@ describe("task_tool", () => {
       //#then
       expect(result).toHaveProperty("task")
       expect(result.task).toHaveProperty("id")
-      expect(result.task.title).toBe("Implement authentication")
-      expect(result.task.status).toBe("open")
+      expect(result.task.subject).toBe("Implement authentication")
+      expect(result.task.status).toBe("pending")
     })
 
     test("auto-generates T-{uuid} format ID", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
       }
 
       //#when
@@ -94,7 +94,7 @@ describe("task_tool", () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
       }
 
       //#when
@@ -106,11 +106,11 @@ describe("task_tool", () => {
       expect(typeof result.task.threadID).toBe("string")
     })
 
-    test("sets status to open by default", async () => {
+    test("sets status to pending by default", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
       }
 
       //#when
@@ -118,14 +118,14 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      expect(result.task.status).toBe("open")
+      expect(result.task.status).toBe("pending")
     })
 
     test("stores optional description field", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
         description: "Detailed description of the task",
       }
 
@@ -137,12 +137,12 @@ describe("task_tool", () => {
       expect(result.task.description).toBe("Detailed description of the task")
     })
 
-    test("stores dependsOn array", async () => {
+    test("stores blockedBy array", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
-        dependsOn: ["T-dep1", "T-dep2"],
+        subject: "Test task",
+        blockedBy: ["T-dep1", "T-dep2"],
       }
 
       //#when
@@ -150,14 +150,14 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      expect(result.task.dependsOn).toEqual(["T-dep1", "T-dep2"])
+      expect(result.task.blockedBy).toEqual(["T-dep1", "T-dep2"])
     })
 
     test("stores parentID when provided", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Subtask",
+        subject: "Subtask",
         parentID: "T-parent123",
       }
 
@@ -173,7 +173,7 @@ describe("task_tool", () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
         repoURL: "https://github.com/code-yeongyu/oh-my-opencode",
       }
 
@@ -189,7 +189,7 @@ describe("task_tool", () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
       }
 
       //#when
@@ -201,11 +201,11 @@ describe("task_tool", () => {
       expect(result).toHaveProperty("task")
     })
 
-    test("initializes dependsOn as empty array when not provided", async () => {
+    test("initializes blockedBy as empty array when not provided", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
       }
 
       //#when
@@ -213,7 +213,7 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      expect(result.task.dependsOn).toEqual([])
+      expect(result.task.blockedBy).toEqual([])
     })
   })
 
@@ -398,7 +398,7 @@ describe("task_tool", () => {
       //#then
       if (result.task !== null) {
         expect(result.task).toHaveProperty("id")
-        expect(result.task).toHaveProperty("title")
+        expect(result.task).toHaveProperty("subject")
         expect(result.task).toHaveProperty("status")
         expect(result.task).toHaveProperty("threadID")
       }
@@ -410,13 +410,13 @@ describe("task_tool", () => {
   // ============================================================================
 
   describe("update action", () => {
-    test("updates task title", async () => {
+    test("updates task subject", async () => {
       //#given
       const testId = await createTestTask("Test task")
       const args = {
         action: "update" as const,
         id: testId,
-        title: "Updated title",
+        subject: "Updated subject",
       }
 
       //#when
@@ -425,7 +425,7 @@ describe("task_tool", () => {
 
       //#then
       expect(result).toHaveProperty("task")
-      expect(result.task.title).toBe("Updated title")
+      expect(result.task.subject).toBe("Updated subject")
     })
 
     test("updates task description", async () => {
@@ -462,13 +462,13 @@ describe("task_tool", () => {
       expect(result.task.status).toBe("in_progress")
     })
 
-    test("updates dependsOn array", async () => {
+    test("updates addBlockedBy array", async () => {
       //#given
       const testId = await createTestTask("Test task")
       const args = {
         action: "update" as const,
         id: testId,
-        dependsOn: ["T-dep1", "T-dep2", "T-dep3"],
+        addBlockedBy: ["T-dep1", "T-dep2", "T-dep3"],
       }
 
       //#when
@@ -476,7 +476,7 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      expect(result.task.dependsOn).toEqual(["T-dep1", "T-dep2", "T-dep3"])
+      expect(result.task.blockedBy).toEqual(["T-dep1", "T-dep2", "T-dep3"])
     })
 
     test("returns error for non-existent task", async () => {
@@ -484,7 +484,7 @@ describe("task_tool", () => {
       const args = {
         action: "update" as const,
         id: "T-nonexistent",
-        title: "New title",
+        subject: "New subject",
       }
 
       //#when
@@ -501,7 +501,7 @@ describe("task_tool", () => {
       const args = {
         action: "update" as const,
         id: "../package",
-        title: "New title",
+        subject: "New subject",
       }
 
       //#when
@@ -519,7 +519,7 @@ describe("task_tool", () => {
       const args = {
         action: "update" as const,
         id: "T-nonexistent",
-        title: "New title",
+        subject: "New subject",
       }
 
       //#when
@@ -537,7 +537,7 @@ describe("task_tool", () => {
       const args = {
         action: "update" as const,
         id: testId,
-        title: "Updated",
+        subject: "Updated",
       }
 
       //#when
@@ -555,7 +555,7 @@ describe("task_tool", () => {
       const args = {
         action: "update" as const,
         id: testId,
-        title: "New title",
+        subject: "New subject",
         description: "New description",
         status: "completed" as const,
       }
@@ -565,7 +565,7 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      expect(result.task.title).toBe("New title")
+      expect(result.task.subject).toBe("New subject")
       expect(result.task.description).toBe("New description")
       expect(result.task.status).toBe("completed")
     })
@@ -668,8 +668,8 @@ describe("task_tool", () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Task A",
-        dependsOn: ["T-taskB"],
+        subject: "Task A",
+        blockedBy: ["T-taskB"],
       }
 
       //#when
@@ -685,8 +685,8 @@ describe("task_tool", () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Task with missing dependency",
-        dependsOn: ["T-nonexistent"],
+        subject: "Task with missing dependency",
+        blockedBy: ["T-nonexistent"],
       }
 
       //#when
@@ -698,7 +698,7 @@ describe("task_tool", () => {
       expect(result).toHaveProperty("task")
     })
 
-    test("ready filter returns true for empty dependsOn", async () => {
+    test("ready filter returns true for empty blockedBy", async () => {
       //#given
       const args = {
         action: "list" as const,
@@ -710,7 +710,7 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      const tasksWithNoDeps = result.tasks.filter((t: TaskObject) => t.dependsOn.length === 0)
+      const tasksWithNoDeps = result.tasks.filter((t: TaskObject) => t.blockedBy.length === 0)
       expect(tasksWithNoDeps.length).toBeGreaterThanOrEqual(0)
     })
 
@@ -744,11 +744,11 @@ describe("task_tool", () => {
       expect(Array.isArray(result.tasks)).toBe(true)
     })
 
-    test("handles empty title gracefully", async () => {
+    test("handles empty subject gracefully", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "",
+        subject: "",
       }
 
       //#when
@@ -756,31 +756,16 @@ describe("task_tool", () => {
       const result = JSON.parse(resultStr)
 
       //#then
-      // Should either reject or handle empty title
+      // Should either reject or handle empty subject
       expect(result).toBeDefined()
     })
 
-    test("handles very long title", async () => {
+    test("handles very long subject", async () => {
       //#given
-      const longTitle = "A".repeat(1000)
+      const longSubject = "A".repeat(1000)
       const args = {
         action: "create" as const,
-        title: longTitle,
-      }
-
-      //#when
-      const resultStr = await taskTool.execute(args, TEST_CONTEXT)
-      const result = JSON.parse(resultStr)
-
-      //#then
-      expect(result).toBeDefined()
-    })
-
-    test("handles special characters in title", async () => {
-      //#given
-      const args = {
-        action: "create" as const,
-        title: "Task with special chars: !@#$%^&*()",
+        subject: longSubject,
       }
 
       //#when
@@ -791,11 +776,26 @@ describe("task_tool", () => {
       expect(result).toBeDefined()
     })
 
-    test("handles unicode characters in title", async () => {
+    test("handles special characters in subject", async () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "任務 🚀 Tâche",
+        subject: "Task with special chars: !@#$%^&*()",
+      }
+
+      //#when
+      const resultStr = await taskTool.execute(args, TEST_CONTEXT)
+      const result = JSON.parse(resultStr)
+
+      //#then
+      expect(result).toBeDefined()
+    })
+
+    test("handles unicode characters in subject", async () => {
+      //#given
+      const args = {
+        action: "create" as const,
+        subject: "任務 🚀 Tâche",
       }
 
       //#when
@@ -810,9 +810,9 @@ describe("task_tool", () => {
       //#given
       const args = {
         action: "create" as const,
-        title: "Test task",
+        subject: "Test task",
         description: "Test description",
-        dependsOn: ["T-dep1"],
+        blockedBy: ["T-dep1"],
         parentID: "T-parent",
         repoURL: "https://example.com",
       }
@@ -823,10 +823,10 @@ describe("task_tool", () => {
 
       //#then
       expect(result.task).toHaveProperty("id")
-      expect(result.task).toHaveProperty("title")
+      expect(result.task).toHaveProperty("subject")
       expect(result.task).toHaveProperty("description")
       expect(result.task).toHaveProperty("status")
-      expect(result.task).toHaveProperty("dependsOn")
+      expect(result.task).toHaveProperty("blockedBy")
       expect(result.task).toHaveProperty("parentID")
       expect(result.task).toHaveProperty("repoURL")
       expect(result.task).toHaveProperty("threadID")
