@@ -19,6 +19,7 @@ export interface TodoContinuationEnforcerOptions {
   backgroundManager?: BackgroundManager
   skipAgents?: string[]
   isContinuationStopped?: (sessionID: string) => boolean
+  isCompacting?: (sessionID: string) => boolean
 }
 
 export interface TodoContinuationEnforcer {
@@ -41,6 +42,8 @@ interface SessionState {
   isRecovering?: boolean
   countdownStartedAt?: number
   abortDetectedAt?: number
+  continuationCount?: number
+  lastContinuationAt?: number
 }
 
 const CONTINUATION_PROMPT = `${createSystemDirective(SystemDirectiveTypes.TODO_CONTINUATION)}
@@ -54,6 +57,8 @@ Incomplete tasks remain in your todo list. Continue working on the next pending 
 const COUNTDOWN_SECONDS = 2
 const TOAST_DURATION_MS = 900
 const COUNTDOWN_GRACE_PERIOD_MS = 500
+const MAX_CONTINUATION_COUNT = 5
+const CONTINUATION_RESET_WINDOW_MS = 60000
 
 function getMessageDir(sessionID: string): string | null {
   if (!existsSync(MESSAGE_STORAGE)) return null
@@ -97,7 +102,7 @@ export function createTodoContinuationEnforcer(
   ctx: PluginInput,
   options: TodoContinuationEnforcerOptions = {}
 ): TodoContinuationEnforcer {
-  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS, isContinuationStopped } = options
+  const { backgroundManager, skipAgents = DEFAULT_SKIP_AGENTS, isContinuationStopped, isCompacting } = options
   const sessions = new Map<string, SessionState>()
 
   function getState(sessionID: string): SessionState {
@@ -167,10 +172,36 @@ export function createTodoContinuationEnforcer(
     total: number,
     resolvedInfo?: ResolvedMessageInfo
   ): Promise<void> {
-    const state = sessions.get(sessionID)
+    const state = getState(sessionID)
 
-    if (state?.isRecovering) {
+    if (state.isRecovering) {
       log(`[${HOOK_NAME}] Skipped injection: in recovery`, { sessionID })
+      return
+    }
+
+    if (isCompacting?.(sessionID)) {
+      log(`[${HOOK_NAME}] Skipped injection: compaction in progress`, { sessionID })
+      return
+    }
+
+    const now = Date.now()
+    if (state.lastContinuationAt && (now - state.lastContinuationAt) > CONTINUATION_RESET_WINDOW_MS) {
+      state.continuationCount = 0
+    }
+
+    state.continuationCount = (state.continuationCount ?? 0) + 1
+    state.lastContinuationAt = now
+
+    if (state.continuationCount > MAX_CONTINUATION_COUNT) {
+      log(`[${HOOK_NAME}] Max continuations reached (${MAX_CONTINUATION_COUNT}), stopping`, { sessionID, count: state.continuationCount })
+      await ctx.client.tui.showToast({
+        body: {
+          title: "Todo Continuation Stopped",
+          message: `Max retries (${MAX_CONTINUATION_COUNT}) reached. Check for errors.`,
+          variant: "error" as const,
+          duration: 5000,
+        },
+      }).catch(() => {})
       return
     }
 
@@ -433,6 +464,11 @@ ${todoList}`
 
       if (isContinuationStopped?.(sessionID)) {
         log(`[${HOOK_NAME}] Skipped: continuation stopped for session`, { sessionID })
+        return
+      }
+
+      if (isCompacting?.(sessionID)) {
+        log(`[${HOOK_NAME}] Skipped: compaction in progress`, { sessionID })
         return
       }
 

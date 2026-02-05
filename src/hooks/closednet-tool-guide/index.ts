@@ -3,74 +3,66 @@
  * 
  * Injects tool usage guidance for models with native function calling
  * in closed network environments (Samsung Life).
- * 
- * Unlike text-tool-parser/tool-call-instruction-injector which use XML,
- * this hook provides guidance for models that support native tool calls.
  */
 
 import type { PluginInput } from "@opencode-ai/plugin"
+import {
+  TOOL_FORMAT_GUIDANCE_COMPACT,
+  DELEGATE_TASK_PARAMS_GUIDANCE,
+  WINDOWS_CMD_WARNING,
+  ERROR_RECOVERY_GUIDANCE,
+} from "../../shared/qwen-tool-guidance"
 
 export const CLOSEDNET_TOOL_GUIDE = `
+<STOP_AND_READ_THIS_FIRST>
+## [최우선] 반드시 읽으세요
+${TOOL_FORMAT_GUIDANCE_COMPACT}
+${WINDOWS_CMD_WARNING}
+${DELEGATE_TASK_PARAMS_GUIDANCE}
+### question 도구 형식
+\`\`\`
+questions=[{...}, {...}]  ← 배열 (올바름)
+questions="[{...}]"       ← 문자열 (잘못됨!)
+\`\`\`
+**questions는 JSON 배열이어야 함. 문자열로 감싸지 마세요.**
+
+</STOP_AND_READ_THIS_FIRST>
+
 <Environment_And_Constraints>
 ## Closed Network Environment
 
-### Network Restrictions
-- This is a **closed network environment** - NO external internet access
-- DO NOT use: webfetch, websearch, codesearch tools (they will fail)
-- DO NOT assume access to public package registries (npm, pip, etc.)
-- LLM calls go through internal HTTPS proxy endpoint only
-
-### When You Need External Documentation
-- Ask the user to provide the doc text or file dump
-- Use the question tool to request specific information
-- Never attempt to fetch URLs or browse the web
+- **폐쇄망 환경** - 외부 인터넷 접근 불가
+- 사용 금지: webfetch, websearch, codesearch (실패함)
+- 외부 문서 필요 시 사용자에게 텍스트로 요청
 
 </Environment_And_Constraints>
 
 <Tool_Usage_Policy>
 ## Tool Usage Rules
 
-### Workflow Pattern
-1. list/glob/grep → Discover codebase structure
-2. read → Understand relevant files (ALWAYS before editing)
-3. Plan → Think through the solution
-4. edit/patch/write → Make changes
-5. bash → Run tests/build/lint to verify
+### Workflow
+1. glob/grep → 구조 파악
+2. read → 파일 이해 (편집 전 필수!)
+3. edit/write → 변경
+4. bash → 테스트/빌드 검증
 
 ### Critical Rules
-1. **ALWAYS read before edit** - Never edit a file you haven't read in this session
-2. **Use native tool calls** - Never output tool-call JSON as plain text
-3. **Handle failures gracefully** - If a tool fails 2-3 times, use question tool to ask the user
-4. **Respect closed network** - Don't try to fetch external URLs
-5. **Prefer minimal changes** - Use edit for targeted changes, avoid rewriting entire files
+- **편집 전 읽기** - 읽지 않은 파일 편집 금지
+- **네이티브 도구 호출** - 텍스트로 도구 호출 금지
+- **반복 실패 시** - question 도구로 사용자에게 문의
+- **forward slash** - 경로에 \`/\` 사용 (\`\\\` 아님)
 
-### Tool-Specific Notes
+### bash 도구
+- description 파라미터 필수 (5-10 단어)
+- 예: command="npm test", description="유닛 테스트 실행"
 
-**bash** - REQUIRES description parameter (5-10 words explaining what the command does)
-- Example: command="npm test", description="Runs all unit tests"
+### edit 도구
+- oldString 정확히 일치해야 함 (공백/들여쓰기 포함)
+- "found multiple times" 에러 → 더 많은 컨텍스트 또는 replaceAll: true
+${ERROR_RECOVERY_GUIDANCE}
+### Response Language
 
-**edit** - Match oldString EXACTLY including whitespace/indentation
-- If "found multiple times" error, add more context or use replaceAll: true
-
-**read** - Max 2000 lines, 50KB per read
-- Use offset/limit for pagination on large files
-
-### Windows Path Rules (CRITICAL)
-
-**ALWAYS use forward slash \`/\` for paths - Windows supports this and it avoids parsing issues.**
-
-| Correct | Incorrect (backslash gets lost) |
-|---------|--------------------------------|
-| \`dir products/dcp-front/src\` | \`dir productsdcp-frontsrc\` |
-| \`cd src/components\` | \`cd srccomponents\` |
-| \`type config/settings.json\` | \`type configsettings.json\` |
-
-**Why?** Backslash \`\\\` is an escape character in many contexts. When you write \`products\\dcp-front\`, the backslash may disappear, resulting in \`productsdcp-front\`.
-
-**Solution:** Use forward slash \`/\` for ALL paths:
-- \`dir products/dcp-front\` ✓
-- \`cd packages/opencode/src\` ✓
-- \`type src/index.ts\` ✓
+**You MUST respond in Korean (한국어). Do not switch to English.**
 
 </Tool_Usage_Policy>
 `

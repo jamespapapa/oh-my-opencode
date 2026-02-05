@@ -56,8 +56,8 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
         }
 
         const lastAssistant = await getLastAssistant(sessionID, ctx.client, ctx.directory)
-        const providerID = parsed.providerID ?? (lastAssistant?.providerID as string | undefined)
-        const modelID = parsed.modelID ?? (lastAssistant?.modelID as string | undefined)
+        const providerID = parsed.providerID ?? (lastAssistant?.providerID as string | undefined) ?? "internal"
+        const modelID = parsed.modelID ?? (lastAssistant?.modelID as string | undefined) ?? "default"
 
         await ctx.client.tui
           .showToast({
@@ -116,8 +116,8 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
         return
       }
 
-      const providerID = errorData?.providerID ?? (lastAssistant?.providerID as string | undefined)
-      const modelID = errorData?.modelID ?? (lastAssistant?.modelID as string | undefined)
+      const providerID = errorData?.providerID ?? (lastAssistant?.providerID as string | undefined) ?? "internal"
+      const modelID = errorData?.modelID ?? (lastAssistant?.modelID as string | undefined) ?? "default"
 
       await ctx.client.tui
         .showToast({
@@ -141,8 +141,13 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
     }
   }
 
+  const isCompacting = (sessionID: string): boolean => {
+    return autoCompactState.compactionInProgress.has(sessionID)
+  }
+
   return {
     event: eventHandler,
+    isCompacting,
   }
 }
 

@@ -1,6 +1,7 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 import type { AgentMode, AgentPromptMetadata } from "./types"
 import { isGptModel } from "./types"
+import { getKoreanInstruction } from "./korean-instruction"
 
 const MODE: AgentMode = "primary"
 export const SISYPHUS_PROMPT_METADATA: AgentPromptMetadata = {
@@ -436,9 +437,10 @@ export function createSisyphusAgent(
   const tools = availableToolNames ? categorizeTools(availableToolNames) : []
   const skills = availableSkills ?? []
   const categories = availableCategories ?? []
-  const prompt = availableAgents
+  const basePrompt = availableAgents
     ? buildDynamicSisyphusPrompt(availableAgents, tools, skills, categories)
     : buildDynamicSisyphusPrompt([], tools, skills, categories)
+  const prompt = getKoreanInstruction() + basePrompt
 
   const permission = { question: "allow", call_omo_agent: "deny" } as AgentConfig["permission"]
   const base = {
@@ -446,7 +448,7 @@ export function createSisyphusAgent(
       "Powerful AI orchestrator. Plans obsessively with todos, assesses search complexity before exploration, delegates strategically via category+skills combinations. Uses explore for internal code (parallel-friendly), librarian for external docs. (Sisyphus - OhMyOpenCode)",
     mode: MODE,
     model,
-    maxTokens: 64000,
+    maxTokens: 16000,
     prompt,
     color: "#00CED1",
     permission,
@@ -456,6 +458,6 @@ export function createSisyphusAgent(
     return { ...base, reasoningEffort: "medium" }
   }
 
-  return { ...base, thinking: { type: "enabled", budgetTokens: 32000 } }
+  return { ...base, thinking: { type: "enabled", budgetTokens: 16000 } }
 }
 createSisyphusAgent.mode = MODE

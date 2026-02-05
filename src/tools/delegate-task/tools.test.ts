@@ -714,18 +714,24 @@ describe("sisyphus-task", () => {
   })
 
   describe("skills parameter", () => {
-    test("skills parameter is required - throws error when not provided", async () => {
+    test("skills parameter defaults to empty array when not provided", async () => {
       // given
       const { createDelegateTask } = require("./tools")
+      let promptBody: any
       
       const mockManager = { launch: async () => ({}) }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
+          get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "test-session" } }),
-          prompt: async () => ({ data: {} }),
-          messages: async () => ({ data: [] }),
+          prompt: async (input: any) => {
+            promptBody = input.body
+            return { data: {} }
+          },
+          messages: async () => ({ data: [{ role: "assistant", content: "done" }] }),
+          status: async () => ({ data: { "test-session": { type: "idle" } } }),
         },
       }
       
@@ -742,8 +748,8 @@ describe("sisyphus-task", () => {
       }
       
       // when - skills not provided (undefined)
-      // then - should throw error about missing skills
-      await expect(tool.execute(
+      // then - should proceed with empty skills (no error)
+      const result = await tool.execute(
         {
           description: "Test task",
           prompt: "Do something",
@@ -751,21 +757,29 @@ describe("sisyphus-task", () => {
           run_in_background: false,
         },
         toolContext
-      )).rejects.toThrow("IT IS HIGHLY RECOMMENDED")
-    })
+      )
+      
+      expect(typeof result).toBe("string")
+    }, { timeout: 20000 })
 
-    test("null skills throws error", async () => {
+    test("null skills defaults to empty array", async () => {
       // given
       const { createDelegateTask } = require("./tools")
+      let promptBody: any
       
       const mockManager = { launch: async () => ({}) }
       const mockClient = {
         app: { agents: async () => ({ data: [] }) },
         config: { get: async () => ({ data: { model: SYSTEM_DEFAULT_MODEL } }) },
         session: {
+          get: async () => ({ data: { directory: "/project" } }),
           create: async () => ({ data: { id: "test-session" } }),
-          prompt: async () => ({ data: {} }),
-          messages: async () => ({ data: [] }),
+          prompt: async (input: any) => {
+            promptBody = input.body
+            return { data: {} }
+          },
+          messages: async () => ({ data: [{ role: "assistant", content: "done" }] }),
+          status: async () => ({ data: { "test-session": { type: "idle" } } }),
         },
       }
       
@@ -782,18 +796,20 @@ describe("sisyphus-task", () => {
       }
       
       // when - null passed
-      // then - should throw error about null
-      await expect(tool.execute(
+      // then - should proceed with empty skills (no error)
+      const result = await tool.execute(
         {
           description: "Test task",
           prompt: "Do something",
           category: "ultrabrain",
           run_in_background: false,
-          load_skills: null,
+          load_skills: null as any,
         },
         toolContext
-      )).rejects.toThrow("IT IS HIGHLY RECOMMENDED")
-    })
+      )
+      
+      expect(typeof result).toBe("string")
+    }, { timeout: 20000 })
 
     test("empty array [] is allowed and proceeds without skill content", async () => {
       // given

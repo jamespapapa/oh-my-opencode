@@ -329,7 +329,7 @@ describe("Prometheus category config resolution", () => {
         model: "test/model",
         temperature: 0.5,
         top_p: 0.9,
-        maxTokens: 32000,
+        maxTokens: 16000,
         tools: { tool1: true, tool2: false },
       },
     }
@@ -342,7 +342,7 @@ describe("Prometheus category config resolution", () => {
     expect(config?.model).toBe("test/model")
     expect(config?.temperature).toBe(0.5)
     expect(config?.top_p).toBe(0.9)
-    expect(config?.maxTokens).toBe(32000)
+    expect(config?.maxTokens).toBe(16000)
     expect(config?.tools).toEqual({ tool1: true, tool2: false })
   })
 })

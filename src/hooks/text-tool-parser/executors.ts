@@ -1,4 +1,4 @@
-import { execSync, spawn } from "child_process"
+import { execSync } from "child_process"
 import * as fs from "fs"
 import * as path from "path"
 import type {
@@ -14,11 +14,36 @@ import type {
   TodoItem,
 } from "./types"
 
+const API_ONLY_TOOLS = [
+  "delegate_task",
+  "lsp_diagnostics", 
+  "lsp_goto_definition",
+  "lsp_find_references",
+  "lsp_symbols",
+  "lsp_rename",
+  "question",
+  "mcp_question",
+  "askuserquestion",
+  "background_output",
+  "background_cancel",
+]
+
+
+
 export async function executeToolCall(
   toolCall: ParsedToolCall,
   workdir: string
 ): Promise<ToolExecutionResult> {
   const { name, parameters } = toolCall
+
+  if (API_ONLY_TOOLS.includes(name)) {
+    return { 
+      success: false, 
+      output: "", 
+      error: `Tool "${name}" requires native function calling`,
+      isApiOnlyTool: true,
+    }
+  }
 
   try {
     switch (name) {

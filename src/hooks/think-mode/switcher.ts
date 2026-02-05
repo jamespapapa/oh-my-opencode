@@ -124,7 +124,7 @@ export const THINKING_CONFIGS = {
   "amazon-bedrock": {
     reasoningConfig: {
       type: "enabled",
-      budgetTokens: 32000,
+      budgetTokens: 16000,
     },
     maxTokens: 64000,
   },

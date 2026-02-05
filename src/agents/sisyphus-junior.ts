@@ -91,7 +91,7 @@ export function createSisyphusJuniorAgentWithOverrides(
     mode: MODE,
     model,
     temperature,
-    maxTokens: 64000,
+    maxTokens: 16000,
     prompt,
     color: override?.color ?? "#20B2AA",
     ...toolsConfig,
@@ -107,7 +107,7 @@ export function createSisyphusJuniorAgentWithOverrides(
 
   return {
     ...base,
-    thinking: { type: "enabled", budgetTokens: 32000 },
+    thinking: { type: "enabled", budgetTokens: 16000 },
   } as AgentConfig
 }
 

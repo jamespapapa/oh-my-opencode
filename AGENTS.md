@@ -1,156 +1,106 @@
-# PROJECT KNOWLEDGE BASE
+# TOOL USAGE GUIDE
 
-**Generated:** 2026-02-02T21:16:00+09:00
-**Commit:** d80adac3
-**Branch:** dev
+## CRITICAL: TOOL CALL FORMAT (READ FIRST - VIOLATIONS CAUSE 'invalid' ERRORS)
+
+**YOU MUST USE NATIVE FUNCTION CALLING. NEVER OUTPUT TOOL CALLS AS TEXT.**
+
+### FORBIDDEN (causes "Model tried to call unavailable tool 'invalid'" error):
+```
+⚙ delegate_task [subagent_type=explore, ...]     ← WRONG: text output
+✱ Glob "**/*.java"                                ← WRONG: text output
+✱ Grep "pattern" in .                             ← WRONG: text output  
+~ Updating todos...                               ← WRONG: text output
+delegate_task(subagent_type="explore", ...)       ← WRONG: text output (not executed)
+```
+
+### CORRECT (native function call - system executes automatically):
+Simply invoke the tool. The system handles execution. Do NOT write tool calls as text.
+
+**WHY THIS MATTERS:**
+- When you output `⚙ delegate_task [...]` as text, it is NOT executed
+- The system tries to parse it, fails, and shows "invalid" tool error
+- You MUST use the actual function calling interface, not text representation
+
+**RULE: If you see yourself writing `⚙`, `✱`, `~`, or tool names followed by `[...]` or `(...)` as plain text, STOP. Use the native function call interface instead.**
 
 ---
 
-## **IMPORTANT: PULL REQUEST TARGET BRANCH**
+## CRITICAL: WINDOWS PATH RULES
 
-> **ALL PULL REQUESTS MUST TARGET THE `dev` BRANCH.**
->
-> **DO NOT CREATE PULL REQUESTS TARGETING `master` BRANCH.**
->
-> PRs to `master` will be automatically rejected by CI.
+**ALWAYS use forward slashes `/` in file paths. NEVER use backslashes `\`.**
+
+```
+CORRECT: src/main/java/com/example/Service.java
+WRONG:   src\main\java\com\example\Service.java
+```
+
+Backslashes cause path parsing failures (e.g., `srcmainjava` instead of `src/main/java`).
 
 ---
 
-## OVERVIEW
+## TOOL QUICK REFERENCE
 
-O P E N C O D E plugin: multi-model agent orchestration (Claude Opus 4.5, GPT-5.2, Gemini 3 Flash). 34 lifecycle hooks, 20+ tools (LSP, AST-Grep, delegation), 11 specialized agents, full Claude Code compatibility. "oh-my-zsh" for O P E N C O D E.
+### File Operations
+| Tool | Purpose | Example |
+|------|---------|---------|
+| `read` | Read file contents | `read(filePath="/path/to/file.java")` |
+| `write` | Create/overwrite file | `write(filePath="/path/to/file.java", content="...")` |
+| `edit` | Modify existing file | `edit(filePath="...", oldString="...", newString="...")` |
+| `glob` | Find files by pattern | `glob(pattern="**/*.java")` |
+| `grep` | Search file contents | `grep(pattern="class.*Service", include="*.java")` |
 
-## STRUCTURE
+### Code Intelligence (LSP)
+| Tool | Purpose | Example |
+|------|---------|---------|
+| `lsp_goto_definition` | Jump to symbol definition | `lsp_goto_definition(filePath="src/App.java", line=10, character=5)` |
+| `lsp_find_references` | Find all usages | `lsp_find_references(filePath="src/App.java", line=10, character=5)` |
+| `lsp_symbols` | List symbols in file/workspace | `lsp_symbols(filePath="src/App.java", scope="document")` |
+| `lsp_diagnostics` | Get errors/warnings | `lsp_diagnostics(filePath="src/App.java")` |
+| `lsp_rename` | Rename symbol across files | `lsp_rename(filePath="src/App.java", line=10, character=5, newName="newVar")` |
 
-```
-oh-my-opencode/
-├── src/
-│   ├── agents/        # 11 AI agents - see src/agents/AGENTS.md
-│   ├── hooks/         # 34 lifecycle hooks - see src/hooks/AGENTS.md
-│   ├── tools/         # 20+ tools - see src/tools/AGENTS.md
-│   ├── features/      # Background agents, Claude Code compat - see src/features/AGENTS.md
-│   ├── shared/        # 55 cross-cutting utilities - see src/shared/AGENTS.md
-│   ├── cli/           # CLI installer, doctor - see src/cli/AGENTS.md
-│   ├── mcp/           # Built-in MCPs - see src/mcp/AGENTS.md
-│   ├── config/        # Zod schema, TypeScript types
-│   └── index.ts       # Main plugin entry (788 lines)
-├── script/            # build-schema.ts, build-binaries.ts
-├── packages/          # 11 platform-specific binaries
-└── dist/              # Build output (ESM + .d.ts)
-```
+**NOTE: LSP tools use `filePath` parameter, NOT `file`.**
 
-## WHERE TO LOOK
+### Code Search (AST-Grep)
+| Tool | Purpose |
+|------|---------|
+| `ast_grep_search` | AST-aware pattern search (25 languages) |
+| `ast_grep_replace` | AST-aware code replacement |
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Add agent | `src/agents/` | Create .ts with factory, add to `agentSources` |
-| Add hook | `src/hooks/` | Create dir with `createXXXHook()`, register in index.ts |
-| Add tool | `src/tools/` | Dir with index/types/constants/tools.ts |
-| Add MCP | `src/mcp/` | Create config, add to index.ts |
-| Add skill | `src/features/builtin-skills/` | Create dir with SKILL.md |
-| Add command | `src/features/builtin-commands/` | Add template + register in commands.ts |
-| Config schema | `src/config/schema.ts` | Zod schema, run `bun run build:schema` |
-| Background agents | `src/features/background-agent/` | manager.ts (1418 lines) |
-| Orchestrator | `src/hooks/atlas/` | Main orchestration hook (757 lines) |
+### Task Management
+| Tool | Purpose |
+|------|---------|
+| `todowrite` | Create/update task list |
+| `todoread` | Read current tasks |
 
-## TDD (Test-Driven Development)
+### Execution
+| Tool | Purpose |
+|------|---------|
+| `bash` | Run shell commands |
 
-**MANDATORY.** RED-GREEN-REFACTOR:
-1. **RED**: Write test → `bun test` → FAIL
-2. **GREEN**: Implement minimum → PASS
-3. **REFACTOR**: Clean up → stay GREEN
+---
 
-**Rules:**
-- NEVER write implementation before test
-- NEVER delete failing tests - fix the code
-- Test file: `*.test.ts` alongside source (100 test files)
-- BDD comments: `//#given`, `//#when`, `//#then`
+## ANTI-PATTERNS (FORBIDDEN)
 
-## CONVENTIONS
+| Category | Forbidden | Use Instead |
+|----------|-----------|-------------|
+| Paths | Backslash `\` in paths | Forward slash `/` |
+| **Windows CMD** | `dir /S /B` | `glob(pattern="**/*")` |
+| **Windows CMD** | `dir /S /B *.java` | `glob(pattern="**/*.java")` |
+| **Windows CMD** | `findstr` | `grep(pattern="...")` |
+| **Windows CMD** | `type filename` | `read(filePath="...")` |
+| Type Safety | `as any`, `@ts-ignore` | Fix the type error |
+| Error Handling | Empty `catch {}` blocks | Handle or log errors |
+| Testing | Deleting failing tests | Fix code, not tests |
+| Verification | Trust "I'm done" | ALWAYS verify output |
 
-- **Package manager**: Bun only (`bun run`, `bun build`, `bunx`)
-- **Types**: bun-types (NEVER @types/node)
-- **Build**: `bun build` (ESM) + `tsc --emitDeclarationOnly`
-- **Exports**: Barrel pattern via index.ts
-- **Naming**: kebab-case dirs, `createXXXHook`/`createXXXTool` factories
-- **Testing**: BDD comments, 100 test files
-- **Temperature**: 0.1 for code agents, max 0.3
+**CRITICAL: This is Git Bash, NOT Windows CMD. Windows commands will fail with "No such file or directory".**
 
-## ANTI-PATTERNS
+---
 
-| Category | Forbidden |
-|----------|-----------|
-| Package Manager | npm, yarn - Bun exclusively |
-| Types | @types/node - use bun-types |
-| File Ops | mkdir/touch/rm/cp/mv in code - use bash tool |
-| Publishing | Direct `bun publish` - GitHub Actions only |
-| Versioning | Local version bump - CI manages |
-| Type Safety | `as any`, `@ts-ignore`, `@ts-expect-error` |
-| Error Handling | Empty catch blocks |
-| Testing | Deleting failing tests |
-| Agent Calls | Sequential - use `delegate_task` parallel |
-| Hook Logic | Heavy PreToolUse - slows every call |
-| Commits | Giant (3+ files), separate test from impl |
-| Temperature | >0.3 for code agents |
-| Trust | Agent self-reports - ALWAYS verify |
+## WORKFLOW
 
-## AGENT MODELS
-
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| Sisyphus | anthropic/claude-opus-4-5 | Primary orchestrator (fallback: kimi-k2.5 → glm-4.7 → gpt-5.2-codex → gemini-3-pro) |
-| Hephaestus | openai/gpt-5.2-codex | Autonomous deep worker, "The Legitimate Craftsman" (requires gpt-5.2-codex, no fallback) |
-| Atlas | anthropic/claude-sonnet-4-5 | Master orchestrator (fallback: kimi-k2.5 → gpt-5.2) |
-| oracle | openai/gpt-5.2 | Consultation, debugging |
-| librarian | zai-coding-plan/glm-4.7 | Docs, GitHub search (fallback: glm-4.7-free) |
-| explore | xai/grok-code-fast-1 | Fast codebase grep (fallback: claude-haiku-4-5 → gpt-5-mini → gpt-5-nano) |
-| multimodal-looker | google/gemini-3-flash | PDF/image analysis |
-| Prometheus | anthropic/claude-opus-4-5 | Strategic planning (fallback: kimi-k2.5 → gpt-5.2) |
-
-## COMMANDS
-
-```bash
-bun run typecheck      # Type check
-bun run build          # ESM + declarations + schema
-bun run rebuild        # Clean + Build
-bun test               # 100 test files
-```
-
-## DEPLOYMENT
-
-**GitHub Actions workflow_dispatch ONLY**
-1. Commit & push changes
-2. Trigger: `gh workflow run publish -f bump=patch`
-3. Never `bun publish` directly, never bump version locally
-
-## COMPLEXITY HOTSPOTS
-
-| File | Lines | Description |
-|------|-------|-------------|
-| `src/features/builtin-skills/skills.ts` | 1729 | Skill definitions |
-| `src/features/background-agent/manager.ts` | 1457 | Task lifecycle, concurrency |
-| `src/agents/prometheus-prompt.ts` | 1283 | Planning agent prompt |
-| `src/tools/delegate-task/tools.ts` | 1135 | Category-based delegation |
-| `src/hooks/atlas/index.ts` | 757 | Orchestrator hook |
-| `src/index.ts` | 788 | Main plugin entry |
-| `src/cli/config-manager.ts` | 667 | JSONC config parsing |
-| `src/features/builtin-commands/templates/refactor.ts` | 619 | Refactor command template |
-
-## MCP ARCHITECTURE
-
-Three-tier system:
-1. **Built-in**: websearch (Exa), context7 (docs), grep_app (GitHub)
-2. **Claude Code compat**: .mcp.json with `${VAR}` expansion
-3. **Skill-embedded**: YAML frontmatter in skills
-
-## CONFIG SYSTEM
-
-- **Zod validation**: `src/config/schema.ts`
-- **JSONC support**: Comments, trailing commas
-- **Multi-level**: Project (`.opencode/`) → User (`~/.config/opencode/`)
-
-## NOTES
-
-- **O P E N C O D E**: Requires >= 1.0.150
-- **Flaky tests**: ralph-loop (CI timeout), session-state (parallel pollution)
-- **Trusted deps**: @ast-grep/cli, @ast-grep/napi, @code-yeongyu/comment-checker
+1. **Understand** - Read relevant files before editing
+2. **Plan** - Use `todowrite` for multi-step tasks
+3. **Execute** - One step at a time
+4. **Verify** - Run `lsp_diagnostics`, build, tests
+5. **Complete** - Mark todos done only after verification

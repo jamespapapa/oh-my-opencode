@@ -311,7 +311,7 @@ export async function executeUnstableAgentTask(
       parentModel: parentContext.model,
       parentAgent: parentContext.agent,
       model: categoryModel,
-      skills: args.load_skills.length > 0 ? args.load_skills : undefined,
+      skills: (args.load_skills?.length ?? 0) > 0 ? args.load_skills : undefined,
       skillContent: systemContent,
       category: args.category,
     })
@@ -458,7 +458,7 @@ export async function executeBackgroundTask(
       parentModel: parentContext.model,
       parentAgent: parentContext.agent,
       model: categoryModel,
-      skills: args.load_skills.length > 0 ? args.load_skills : undefined,
+      skills: (args.load_skills?.length ?? 0) > 0 ? args.load_skills : undefined,
       skillContent: systemContent,
       category: args.category,
     })
@@ -632,6 +632,9 @@ export async function executeSyncTask(
 
     log("[delegate_task] Starting poll loop", { sessionID, agentToUse })
 
+    let consecutiveErrors = 0
+    const MAX_CONSECUTIVE_ERRORS = 5
+
     while (Date.now() - pollStart < syncTiming.MAX_POLL_TIME_MS) {
       if (ctx.abort?.aborted) {
         log("[delegate_task] Aborted by user", { sessionID })
@@ -642,24 +645,35 @@ export async function executeSyncTask(
       await new Promise(resolve => setTimeout(resolve, syncTiming.POLL_INTERVAL_MS))
       pollCount++
 
-      const statusResult = await client.session.status()
-      const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
-      const sessionStatus = allStatuses[sessionID]
+      try {
+        const statusResult = await client.session.status()
+        const allStatuses = (statusResult.data ?? {}) as Record<string, { type: string }>
+        const sessionStatus = allStatuses[sessionID]
+        consecutiveErrors = 0
 
-      if (pollCount % 10 === 0) {
-        log("[delegate_task] Poll status", {
-          sessionID,
-          pollCount,
-          elapsed: Math.floor((Date.now() - pollStart) / 1000) + "s",
-          sessionStatus: sessionStatus?.type ?? "not_in_status",
-          stablePolls,
-          lastMsgCount,
-        })
-      }
+        if (pollCount % 10 === 0) {
+          log("[delegate_task] Poll status", {
+            sessionID,
+            pollCount,
+            elapsed: Math.floor((Date.now() - pollStart) / 1000) + "s",
+            sessionStatus: sessionStatus?.type ?? "not_in_status",
+            stablePolls,
+            lastMsgCount,
+          })
+        }
 
-      if (sessionStatus && sessionStatus.type !== "idle") {
-        stablePolls = 0
-        lastMsgCount = 0
+        if (sessionStatus && sessionStatus.type !== "idle") {
+          stablePolls = 0
+          lastMsgCount = 0
+          continue
+        }
+      } catch (statusError) {
+        consecutiveErrors++
+        log("[delegate_task] Status poll error", { sessionID, error: String(statusError), consecutiveErrors })
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          log("[delegate_task] Too many consecutive errors, breaking poll loop", { sessionID })
+          break
+        }
         continue
       }
 
@@ -668,19 +682,29 @@ export async function executeSyncTask(
         continue
       }
 
-      const messagesCheck = await client.session.messages({ path: { id: sessionID } })
-      const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
-      const currentMsgCount = msgs.length
+      try {
+        const messagesCheck = await client.session.messages({ path: { id: sessionID } })
+        const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
+        const currentMsgCount = msgs.length
+        consecutiveErrors = 0
 
-      if (currentMsgCount === lastMsgCount) {
-        stablePolls++
-        if (stablePolls >= syncTiming.STABILITY_POLLS_REQUIRED) {
-          log("[delegate_task] Poll complete - messages stable", { sessionID, pollCount, currentMsgCount })
+        if (currentMsgCount === lastMsgCount) {
+          stablePolls++
+          if (stablePolls >= syncTiming.STABILITY_POLLS_REQUIRED) {
+            log("[delegate_task] Poll complete - messages stable", { sessionID, pollCount, currentMsgCount })
+            break
+          }
+        } else {
+          stablePolls = 0
+          lastMsgCount = currentMsgCount
+        }
+      } catch (messagesError) {
+        consecutiveErrors++
+        log("[delegate_task] Messages poll error", { sessionID, error: String(messagesError), consecutiveErrors })
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          log("[delegate_task] Too many consecutive errors, breaking poll loop", { sessionID })
           break
         }
-      } else {
-        stablePolls = 0
-        lastMsgCount = currentMsgCount
       }
     }
 

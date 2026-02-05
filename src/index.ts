@@ -344,6 +344,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     ? createTodoContinuationEnforcer(ctx, {
         backgroundManager,
         isContinuationStopped: stopContinuationGuard?.isStopped,
+        isCompacting: anthropicContextWindowLimitRecovery?.isCompacting,
       })
     : null;
 
@@ -657,6 +658,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       await stopContinuationGuard?.event(input);
       await atlasHook?.handler(input);
       await textToolParser?.event(input);
+      await compactionContextInjector?.event(input);
 
       const { event } = input;
       const props = event.properties as Record<string, unknown> | undefined;
@@ -861,7 +863,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       if (!compactionContextInjector) {
         return;
       }
-      await compactionContextInjector({
+      await compactionContextInjector.onSummarize({
         sessionID: input.sessionID,
         providerID: "anthropic",
         modelID: "claude-opus-4-5",

@@ -499,7 +499,7 @@ export function createHephaestusAgent(
       "Autonomous Deep Worker - goal-oriented execution with GPT 5.2 Codex. Explores thoroughly before acting, uses explore/librarian agents for comprehensive context, completes tasks end-to-end. Inspired by AmpCode deep mode. (Hephaestus - OhMyOpenCode)",
     mode: MODE,
     model,
-    maxTokens: 32000,
+    maxTokens: 16000,
     prompt,
     color: "#FF4500", // Magma Orange - forge heat, distinct from Prometheus purple
     permission: { question: "allow", call_omo_agent: "deny" } as AgentConfig["permission"],

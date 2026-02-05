@@ -12,7 +12,7 @@ import { ANALYZE_PATTERN, ANALYZE_MESSAGE } from "./analyze"
 
 export type KeywordDetector = {
   pattern: RegExp
-  message: string | ((agentName?: string, modelID?: string) => string)
+  message: string | ((agentName?: string, modelID?: string, providerID?: string) => string)
 }
 
 export const KEYWORD_DETECTORS: KeywordDetector[] = [

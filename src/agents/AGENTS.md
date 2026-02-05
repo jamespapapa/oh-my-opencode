@@ -25,6 +25,7 @@ agents/
 ├── metis.ts                    # Pre-planning analysis (Gap detection)
 ├── momus.ts                    # Plan reviewer (Ruthless fault-finding)
 ├── dynamic-agent-prompt-builder.ts  # Dynamic prompt generation
+├── korean-instruction.ts       # Korean response instruction (SLI closed network)
 ├── types.ts                    # AgentModelConfig, AgentPromptMetadata
 ├── utils.ts                    # createBuiltinAgents(), resolveModelWithFallback()
 └── index.ts                    # builtinAgents export

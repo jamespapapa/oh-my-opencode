@@ -12,7 +12,7 @@ export interface DelegateTaskArgs {
   run_in_background: boolean
   session_id?: string
   command?: string
-  load_skills: string[]
+  load_skills?: string[]
   execute?: {
     task_id: string
     task_dir?: string

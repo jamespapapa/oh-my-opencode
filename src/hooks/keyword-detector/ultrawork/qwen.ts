@@ -1,0 +1,16 @@
+import { ULTRAWORK_DEFAULT_MESSAGE } from "./default"
+import {
+  TOOL_FORMAT_GUIDANCE_COMPACT,
+  DELEGATE_TASK_PARAMS_GUIDANCE,
+  ERROR_RECOVERY_GUIDANCE,
+} from "../../../shared/qwen-tool-guidance"
+
+const QWEN_TOOL_CALL_RULES = `
+${TOOL_FORMAT_GUIDANCE_COMPACT}
+${DELEGATE_TASK_PARAMS_GUIDANCE}
+${ERROR_RECOVERY_GUIDANCE}
+`
+
+export function getQwenUltraworkMessage(): string {
+  return QWEN_TOOL_CALL_RULES + ULTRAWORK_DEFAULT_MESSAGE
+}

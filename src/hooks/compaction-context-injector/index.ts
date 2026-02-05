@@ -1,6 +1,11 @@
 import { injectHookMessage } from "../../features/hook-message-injector"
 import { log } from "../../shared/logger"
 import { createSystemDirective, SystemDirectiveTypes } from "../../shared/system-directive"
+import { 
+  TOOL_FORMAT_GUIDANCE_COMPACT, 
+  SUMMARIZE_TOOL_FORMAT_SECTION,
+  POST_COMPACTION_TOOL_REMINDER 
+} from "../../shared/qwen-tool-guidance"
 
 export interface SummarizeContext {
   sessionID: string
@@ -11,6 +16,12 @@ export interface SummarizeContext {
 }
 
 const SUMMARIZE_CONTEXT_PROMPT = `${createSystemDirective(SystemDirectiveTypes.COMPACTION_CONTEXT)}
+
+**CRITICAL: You MUST generate the summary in English, regardless of the conversation language.**
+
+**NOTE FOR AGENT RECEIVING THIS SUMMARY**: This summary is in English for technical consistency, but you MUST continue responding in Korean (한국어). Do not switch to English just because this context is in English.
+${TOOL_FORMAT_GUIDANCE_COMPACT}
+---
 
 When summarizing this session, you MUST include the following sections in your summary:
 
@@ -53,24 +64,60 @@ When summarizing this session, you MUST include the following sections in your s
 - **Acceptance Status**: Current state of review process
 
 This section is CRITICAL for reviewer agents (momus, oracle) to maintain continuity.
-
+${SUMMARIZE_TOOL_FORMAT_SECTION}
 This context is critical for maintaining continuity after compaction.
 `
 
-export function createCompactionContextInjector() {
-  return async (ctx: SummarizeContext): Promise<void> => {
-    log("[compaction-context-injector] injecting context", { sessionID: ctx.sessionID })
+interface SessionCompactedEvent {
+  type: "session.compacted"
+  properties: {
+    sessionID: string
+    directory?: string
+  }
+}
 
-    const success = injectHookMessage(ctx.sessionID, SUMMARIZE_CONTEXT_PROMPT, {
-      agent: "general",
-      model: { providerID: ctx.providerID, modelID: ctx.modelID },
-      path: { cwd: ctx.directory },
-    })
+export interface CompactionContextInjectorHook {
+  onSummarize: (ctx: SummarizeContext) => Promise<void>
+  event: (input: { event: { type: string; properties: unknown } }) => Promise<void>
+}
 
-    if (success) {
-      log("[compaction-context-injector] context injected", { sessionID: ctx.sessionID })
-    } else {
-      log("[compaction-context-injector] injection failed", { sessionID: ctx.sessionID })
-    }
+export function createCompactionContextInjector(): CompactionContextInjectorHook {
+  return {
+    onSummarize: async (ctx: SummarizeContext): Promise<void> => {
+      log("[compaction-context-injector] injecting context", { sessionID: ctx.sessionID })
+
+      const success = injectHookMessage(ctx.sessionID, SUMMARIZE_CONTEXT_PROMPT, {
+        agent: "general",
+        model: { providerID: ctx.providerID, modelID: ctx.modelID },
+        path: { cwd: ctx.directory },
+      })
+
+      if (success) {
+        log("[compaction-context-injector] context injected", { sessionID: ctx.sessionID })
+      } else {
+        log("[compaction-context-injector] injection failed", { sessionID: ctx.sessionID })
+      }
+    },
+
+    event: async (input): Promise<void> => {
+      const { event } = input
+      if (event.type !== "session.compacted") return
+
+      const props = event.properties as SessionCompactedEvent["properties"]
+      if (!props?.sessionID) return
+
+      log("[compaction-context-injector] post-compaction reminder", { sessionID: props.sessionID })
+
+      const success = injectHookMessage(props.sessionID, POST_COMPACTION_TOOL_REMINDER, {
+        agent: "general",
+        path: props.directory ? { cwd: props.directory } : undefined,
+      })
+
+      if (success) {
+        log("[compaction-context-injector] post-compaction reminder injected", { sessionID: props.sessionID })
+      } else {
+        log("[compaction-context-injector] post-compaction reminder failed", { sessionID: props.sessionID })
+      }
+    },
   }
 }

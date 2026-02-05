@@ -15,6 +15,10 @@ const TOKEN_LIMIT_PATTERNS = [
   /(\d+).*?tokens.*?limit.*?(\d+)/i,
   /context.*?length.*?(\d+).*?maximum.*?(\d+)/i,
   /max.*?context.*?(\d+).*?but.*?(\d+)/i,
+  /max_tokens.*?(\d+).*?Context.*?(\d+)/i,
+  /\((\d+)\s*>\s*(\d+)\)/,
+  /maximum context length is (\d+).*?(\d+) input tokens/i,
+  /(\d+)\s*>\s*(\d+)\s*-\s*\d+/,
 ]
 
 const TOKEN_LIMIT_KEYWORDS = [

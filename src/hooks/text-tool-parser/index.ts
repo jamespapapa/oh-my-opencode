@@ -3,6 +3,7 @@ import type { TextToolParserConfig } from "./types"
 import { parseToolCalls, hasToolCalls } from "./parser"
 import { executeToolCall, formatToolResult } from "./executors"
 import { SUBAGENT_TOOL_INSTRUCTIONS } from "./prompt"
+import { TOOL_FORMAT_ERROR_FULL } from "../../shared/qwen-tool-guidance"
 
 interface TextToolParserContext {
   ctx: PluginInput
@@ -13,6 +14,8 @@ interface MessageInfo {
   id?: string
   role?: string
   sessionID?: string
+  agent?: string
+  summary?: boolean
 }
 
 interface EventProperties {
@@ -68,6 +71,8 @@ export function createTextToolParserHook(
       const info = props?.info
       if (!info?.sessionID || info.role !== "assistant" || !info.id) return
 
+      if (info.agent === "compaction" || info.summary === true) return
+
       const messageKey = `${info.sessionID}:${info.id}`
       if (processedMessages.has(messageKey)) return
 
@@ -79,6 +84,8 @@ export function createTextToolParserHook(
     },
   }
 }
+
+
 
 async function processAssistantMessage(
   context: TextToolParserContext,
@@ -113,11 +120,12 @@ async function processAssistantMessage(
 
     await ctx.client.session.abort({ path: { id: sessionID } }).catch(() => {})
 
-    const results: string[] = []
+    const apiOnlyTools: string[] = []
+    const executableResults: string[] = []
     
     for (const toolCall of toolCalls) {
       if (config.allowedTools?.length && !config.allowedTools.includes(toolCall.name)) {
-        results.push(formatToolResult(toolCall, {
+        executableResults.push(formatToolResult(toolCall, {
           success: false,
           output: "",
           error: `Tool "${toolCall.name}" is not allowed`,
@@ -126,17 +134,39 @@ async function processAssistantMessage(
       }
 
       const result = await executeToolCall(toolCall, config.workdir || ctx.directory)
-      results.push(formatToolResult(toolCall, result))
+      
+      if (result.isApiOnlyTool) {
+        apiOnlyTools.push(toolCall.name)
+      } else {
+        executableResults.push(formatToolResult(toolCall, result))
+      }
     }
 
-    const toolResultsText = results.join("\n\n")
+    if (!config.autoContinue) return
 
-    if (config.autoContinue) {
+    if (apiOnlyTools.length > 0) {
+      const failedToolsList = [...new Set(apiOnlyTools)].join(", ")
+      const errorPrompt = `${TOOL_FORMAT_ERROR_FULL}
+
+실행 시도된 도구: ${failedToolsList}
+결과: 모두 실패 - 아무것도 실행되지 않음
+
+다시 시도하려면 네이티브 함수 호출을 사용하세요.`
+
+      await ctx.client.session.prompt({
+        path: { id: sessionID },
+        body: { parts: [{ type: "text", text: errorPrompt }] },
+        query: { directory: ctx.directory },
+      })
+      return
+    }
+
+    if (executableResults.length > 0) {
       const continuePrompt = `[TOOL EXECUTION RESULTS]
 
 The following tools were executed based on your previous instructions:
 
-${toolResultsText}
+${executableResults.join("\n\n")}
 
 Continue your work based on these results. If all tasks are complete, summarize what was done.
 If there were errors, address them and retry if appropriate.`

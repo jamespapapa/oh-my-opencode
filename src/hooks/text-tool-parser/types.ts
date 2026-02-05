@@ -15,6 +15,8 @@ export interface ToolExecutionResult {
   success: boolean
   output: string
   error?: string
+  /** True if this tool requires native API calling and cannot be executed via text parsing */
+  isApiOnlyTool?: boolean
 }
 
 export interface TextToolParserConfig {
@@ -34,9 +36,6 @@ export interface TextToolParserConfig {
   autoContinue?: boolean
 }
 
-/**
- * Supported tool names
- */
 export type SupportedToolName = 
   | 'write'
   | 'edit' 
@@ -46,6 +45,17 @@ export type SupportedToolName =
   | 'grep'
   | 'todowrite'
   | 'todoread'
+  | 'delegate_task'
+  | 'lsp_diagnostics'
+  | 'lsp_goto_definition'
+  | 'lsp_find_references'
+  | 'lsp_symbols'
+  | 'lsp_rename'
+  | 'question'
+  | 'mcp_question'
+  | 'askuserquestion'
+  | 'background_output'
+  | 'background_cancel'
 
 export const SUPPORTED_TOOLS: SupportedToolName[] = [
   'write',
@@ -56,6 +66,17 @@ export const SUPPORTED_TOOLS: SupportedToolName[] = [
   'grep',
   'todowrite',
   'todoread',
+  'delegate_task',
+  'lsp_diagnostics',
+  'lsp_goto_definition',
+  'lsp_find_references',
+  'lsp_symbols',
+  'lsp_rename',
+  'question',
+  'mcp_question',
+  'askuserquestion',
+  'background_output',
+  'background_cancel',
 ]
 
 /**

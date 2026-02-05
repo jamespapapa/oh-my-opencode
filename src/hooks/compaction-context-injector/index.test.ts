@@ -45,7 +45,7 @@ describe("createCompactionContextInjector", () => {
       }
 
       // when
-      await injector(context)
+      await injector.onSummarize(context)
 
       // then
       expect(mockInjectHookMessage).toHaveBeenCalledTimes(1)
@@ -68,7 +68,7 @@ describe("createCompactionContextInjector", () => {
       }
 
       // when
-      await injector(context)
+      await injector.onSummarize(context)
 
       // then
       const calls = mockInjectHookMessage.mock.calls as unknown as [string, string, unknown][]
@@ -90,7 +90,7 @@ describe("createCompactionContextInjector", () => {
       }
 
       // when
-      await injector(context)
+      await injector.onSummarize(context)
 
       // then
       const calls = mockInjectHookMessage.mock.calls as unknown as [string, string, unknown][]

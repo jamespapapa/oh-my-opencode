@@ -4,7 +4,15 @@ const ANTHROPIC_ACTUAL_LIMIT =
     ? 1_000_000
     : 200_000
 
+// Internal provider (Qwen, GPT-OSS) context limit
+// Qwen3-235b: actual context=65536, but we use conservative 50000 to avoid max_tokens errors
+// 78% threshold = ~39,000 tokens trigger compaction
+const INTERNAL_ACTUAL_LIMIT = parseInt(process.env.INTERNAL_CONTEXT_LIMIT ?? "50000", 10)
+
 const PREEMPTIVE_COMPACTION_THRESHOLD = 0.78
+
+// Supported providers for preemptive compaction
+const SUPPORTED_PROVIDERS = new Set(["anthropic", "internal"])
 
 interface AssistantMessageInfo {
   role: "assistant"
@@ -59,16 +67,18 @@ export function createPreemptiveCompactionHook(ctx: PluginInput) {
       if (assistantMessages.length === 0) return
 
       const lastAssistant = assistantMessages[assistantMessages.length - 1]
-      if (lastAssistant.providerID !== "anthropic") return
+      if (!SUPPORTED_PROVIDERS.has(lastAssistant.providerID)) return
+
+      const contextLimit =
+        lastAssistant.providerID === "anthropic" ? ANTHROPIC_ACTUAL_LIMIT : INTERNAL_ACTUAL_LIMIT
 
       const lastTokens = lastAssistant.tokens
       const totalInputTokens = (lastTokens?.input ?? 0) + (lastTokens?.cache?.read ?? 0)
-      const usageRatio = totalInputTokens / ANTHROPIC_ACTUAL_LIMIT
+      const usageRatio = totalInputTokens / contextLimit
 
       if (usageRatio < PREEMPTIVE_COMPACTION_THRESHOLD) return
 
-      const modelID = lastAssistant.modelID
-      if (!modelID) return
+      const modelID = lastAssistant.modelID ?? "default"
 
       compactionInProgress.add(sessionID)
 

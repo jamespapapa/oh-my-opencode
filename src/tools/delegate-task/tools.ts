@@ -37,7 +37,7 @@ export function createDelegateTask(options: DelegateTaskToolOptions): ToolDefini
 
 MUTUALLY EXCLUSIVE: Provide EITHER category OR subagent_type, not both (unless continuing a session).
 
-- load_skills: ALWAYS REQUIRED. Pass at least one skill name (e.g., ["playwright"], ["git-master", "frontend-ui-ux"]).
+- load_skills: Optional but HIGHLY RECOMMENDED. Pass skill names (e.g., ["playwright"], ["git-master"]) for best results. Defaults to [] if omitted.
 - category: Use predefined category → Spawns Sisyphus-Junior with category config
   Available categories:
 ${categoryList}
@@ -56,7 +56,7 @@ Prompts MUST be in English.`
   return tool({
     description,
     args: {
-      load_skills: tool.schema.array(tool.schema.string()).describe("Skill names to inject. REQUIRED - pass [] if no skills needed, but IT IS HIGHLY RECOMMENDED to pass proper skills like [\"playwright\"], [\"git-master\"] for best results."),
+      load_skills: tool.schema.array(tool.schema.string()).optional().describe("Skill names to inject. Highly recommended to pass proper skills like [\"playwright\"], [\"git-master\"] for best results. Defaults to [] if not provided."),
       description: tool.schema.string().describe("Short task description (3-5 words)"),
       prompt: tool.schema.string().describe("Full detailed prompt for the agent"),
       run_in_background: tool.schema.boolean().describe("true=async (returns task_id), false=sync (waits). Default: false"),
@@ -71,16 +71,12 @@ Prompts MUST be in English.`
       if (args.run_in_background === undefined) {
         throw new Error(`Invalid arguments: 'run_in_background' parameter is REQUIRED. Use run_in_background=false for task delegation, run_in_background=true only for parallel exploration.`)
       }
-      if (args.load_skills === undefined) {
-        throw new Error(`Invalid arguments: 'load_skills' parameter is REQUIRED. Pass [] if no skills needed, but IT IS HIGHLY RECOMMENDED to pass proper skills like ["playwright"], ["git-master"] for best results.`)
-      }
-      if (args.load_skills === null) {
-        throw new Error(`Invalid arguments: load_skills=null is not allowed. Pass [] if no skills needed, but IT IS HIGHLY RECOMMENDED to pass proper skills.`)
-      }
+
+      const loadSkills = args.load_skills ?? []
 
       const runInBackground = args.run_in_background === true
 
-      const { content: skillContent, error: skillError } = await resolveSkillContent(args.load_skills, {
+      const { content: skillContent, error: skillError } = await resolveSkillContent(loadSkills, {
         gitMasterConfig: options.gitMasterConfig,
         browserProvider: options.browserProvider,
       })

@@ -199,6 +199,30 @@ export function createClaudeCodeHooksHook(
         log("todowrite: parsed todos string to array", { sessionID: input.sessionID })
       }
 
+      if ((input.tool === "question" || input.tool === "mcp_question") && typeof output.args.questions === "string") {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(output.args.questions)
+        } catch (e) {
+          throw new Error(
+            `[question ERROR] Failed to parse questions string as JSON. ` +
+            `Received: ${output.args.questions.length > 100 ? output.args.questions.slice(0, 100) + '...' : output.args.questions} ` +
+            `Expected: Valid JSON array. Pass questions as an array, not a string.`
+          )
+        }
+
+        if (!Array.isArray(parsed)) {
+          throw new Error(
+            `[question ERROR] Parsed JSON is not an array. ` +
+            `Received type: ${typeof parsed}. ` +
+            `Expected: Array of question objects.`
+          )
+        }
+
+        output.args.questions = parsed
+        log("question: parsed questions string to array", { sessionID: input.sessionID })
+      }
+
       const claudeConfig = await loadClaudeHooksConfig()
       const extendedConfig = await loadPluginExtendedConfig()
 
