@@ -176,13 +176,26 @@ export function createClaudeCodeHooksHook(
       output: { args: Record<string, unknown> }
     ): Promise<void> => {
       if (input.tool === "todowrite" && typeof output.args.todos === "string") {
+        const todosStr = output.args.todos
+        
+        // Detect [object Object] pattern - indicates broken serialization
+        if (todosStr.includes("[object Object]")) {
+          throw new Error(
+            `[todowrite ERROR] todos contains "[object Object]" - this means the array was incorrectly serialized. ` +
+            `DO NOT output "[object Object]". ` +
+            `You MUST use proper JSON array format with actual values: ` +
+            `[{"id": "1", "content": "task description", "status": "pending", "priority": "high"}]. ` +
+            `Use native function calling, not text output.`
+          )
+        }
+        
         let parsed: unknown
         try {
-          parsed = JSON.parse(output.args.todos)
+          parsed = JSON.parse(todosStr)
         } catch (e) {
           throw new Error(
             `[todowrite ERROR] Failed to parse todos string as JSON. ` +
-            `Received: ${output.args.todos.length > 100 ? output.args.todos.slice(0, 100) + '...' : output.args.todos} ` +
+            `Received: ${todosStr.length > 100 ? todosStr.slice(0, 100) + '...' : todosStr} ` +
             `Expected: Valid JSON array. Pass todos as an array, not a string.`
           )
         }
@@ -200,13 +213,25 @@ export function createClaudeCodeHooksHook(
       }
 
       if ((input.tool === "question" || input.tool === "mcp_question") && typeof output.args.questions === "string") {
+        const questionsStr = output.args.questions
+        
+        // Detect [object Object] pattern - indicates broken serialization
+        if (questionsStr.includes("[object Object]")) {
+          throw new Error(
+            `[question ERROR] questions contains "[object Object]" - this means the array was incorrectly serialized. ` +
+            `DO NOT output "[object Object]". ` +
+            `You MUST use proper JSON array format with actual values. ` +
+            `Use native function calling, not text output.`
+          )
+        }
+        
         let parsed: unknown
         try {
-          parsed = JSON.parse(output.args.questions)
+          parsed = JSON.parse(questionsStr)
         } catch (e) {
           throw new Error(
             `[question ERROR] Failed to parse questions string as JSON. ` +
-            `Received: ${output.args.questions.length > 100 ? output.args.questions.slice(0, 100) + '...' : output.args.questions} ` +
+            `Received: ${questionsStr.length > 100 ? questionsStr.slice(0, 100) + '...' : questionsStr} ` +
             `Expected: Valid JSON array. Pass questions as an array, not a string.`
           )
         }
