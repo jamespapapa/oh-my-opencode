@@ -14,6 +14,9 @@ const QWEN_STAR_GREP_REGEX = /✱\s*Grep\s*"([^"]+)"\s+in\s+(\S+)/gi
 const QWEN_STAR_READ_REGEX = /✱\s*Read\s*"([^"]+)"/gi
 // Qwen outputs after compaction: → Read filepath (unquoted, may have Windows backslashes)
 const QWEN_ARROW_READ_REGEX = /→\s*Read\s+([^\s\n]+)/gi
+// Qwen outputs: mcp_read "filepath" or mcp_read filepath (without parentheses)
+const MCP_READ_NO_PAREN_REGEX = /\bmcp_read\s+"([^"]+)"/gi
+const MCP_READ_UNQUOTED_REGEX = /\bmcp_read\s+([^\s\n"(]+)/gi
 const QWEN_TILDE_REGEX = /~\s*([\w\s]+?)(?:\.\.\.|$)/gm
 // Qwen outputs: mcp_question(questions=[...]) or tool_name(param=value)
 const FUNCTION_CALL_NAMES = [
@@ -112,6 +115,28 @@ function parseQwenToolCalls(text: string, results: ParsedToolCall[]): void {
   
   QWEN_ARROW_READ_REGEX.lastIndex = 0
   while ((match = QWEN_ARROW_READ_REGEX.exec(text)) !== null) {
+    const rawPath = match[1]
+    const normalizedPath = rawPath.replace(/\\/g, "/")
+    results.push({ 
+      name: "read", 
+      parameters: { filePath: normalizedPath }, 
+      raw: match[0] 
+    })
+  }
+  
+  MCP_READ_NO_PAREN_REGEX.lastIndex = 0
+  while ((match = MCP_READ_NO_PAREN_REGEX.exec(text)) !== null) {
+    const rawPath = match[1]
+    const normalizedPath = rawPath.replace(/\\/g, "/")
+    results.push({ 
+      name: "read", 
+      parameters: { filePath: normalizedPath }, 
+      raw: match[0] 
+    })
+  }
+  
+  MCP_READ_UNQUOTED_REGEX.lastIndex = 0
+  while ((match = MCP_READ_UNQUOTED_REGEX.exec(text)) !== null) {
     const rawPath = match[1]
     const normalizedPath = rawPath.replace(/\\/g, "/")
     results.push({ 
@@ -368,6 +393,8 @@ export function hasToolCalls(text: string): boolean {
   QWEN_STAR_GREP_REGEX.lastIndex = 0
   QWEN_STAR_READ_REGEX.lastIndex = 0
   QWEN_ARROW_READ_REGEX.lastIndex = 0
+  MCP_READ_NO_PAREN_REGEX.lastIndex = 0
+  MCP_READ_UNQUOTED_REGEX.lastIndex = 0
   FUNCTION_CALL_REGEX.lastIndex = 0
   
   return TOOL_CALL_REGEX.test(text) || 
@@ -376,6 +403,8 @@ export function hasToolCalls(text: string): boolean {
          QWEN_STAR_GREP_REGEX.test(text) ||
          QWEN_STAR_READ_REGEX.test(text) ||
          QWEN_ARROW_READ_REGEX.test(text) ||
+         MCP_READ_NO_PAREN_REGEX.test(text) ||
+         MCP_READ_UNQUOTED_REGEX.test(text) ||
          FUNCTION_CALL_REGEX.test(text)
 }
 
@@ -387,5 +416,7 @@ export function extractTextWithoutToolCalls(text: string): string {
     .replace(QWEN_STAR_GREP_REGEX, '')
     .replace(QWEN_STAR_READ_REGEX, '')
     .replace(QWEN_ARROW_READ_REGEX, '')
+    .replace(MCP_READ_NO_PAREN_REGEX, '')
+    .replace(MCP_READ_UNQUOTED_REGEX, '')
     .trim()
 }

@@ -216,3 +216,33 @@ describe("Qwen arrow read pattern", () => {
     expect(result).toBe("Before\n\nAfter")
   })
 })
+
+describe("mcp_read without parentheses", () => {
+  it("parses mcp_read with quoted path", () => {
+    const text = 'mcp_read "src/components/App.vue"'
+    const result = parseToolCalls(text)
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe("read")
+    expect(result[0].parameters.filePath).toBe("src/components/App.vue")
+  })
+
+  it("parses mcp_read with unquoted path", () => {
+    const text = "mcp_read src/utils/helper.ts"
+    const result = parseToolCalls(text)
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe("read")
+    expect(result[0].parameters.filePath).toBe("src/utils/helper.ts")
+  })
+
+  it("normalizes Windows backslashes in mcp_read", () => {
+    const text = 'mcp_read "src\\views\\Component.vue"'
+    const result = parseToolCalls(text)
+    expect(result).toHaveLength(1)
+    expect(result[0].parameters.filePath).toBe("src/views/Component.vue")
+  })
+
+  it("hasToolCalls returns true for mcp_read without parens", () => {
+    expect(hasToolCalls('mcp_read "test.ts"')).toBe(true)
+    expect(hasToolCalls("mcp_read test.ts")).toBe(true)
+  })
+})
