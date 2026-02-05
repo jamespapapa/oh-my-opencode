@@ -176,3 +176,43 @@ After text
     expect(result).toBe("Before text\n\nAfter text")
   })
 })
+
+describe("Qwen arrow read pattern", () => {
+  it("parses arrow read with forward slashes", () => {
+    const text = "→ Read src/views/Component.vue"
+    const result = parseToolCalls(text)
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe("read")
+    expect(result[0].parameters.filePath).toBe("src/views/Component.vue")
+  })
+
+  it("parses arrow read with Windows backslashes and normalizes to forward slashes", () => {
+    const text = "→ Read src\\views\\pc\\individual\\products\\price\\PDO-ININT020102C.vue"
+    const result = parseToolCalls(text)
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe("read")
+    expect(result[0].parameters.filePath).toBe("src/views/pc/individual/products/price/PDO-ININT020102C.vue")
+  })
+
+  it("parses multiple arrow read calls", () => {
+    const text = `→ Read src\\file1.vue
+→ Read src\\file2.vue
+→ Read src\\file3.vue`
+    const result = parseToolCalls(text)
+    expect(result).toHaveLength(3)
+    expect(result[0].parameters.filePath).toBe("src/file1.vue")
+    expect(result[1].parameters.filePath).toBe("src/file2.vue")
+    expect(result[2].parameters.filePath).toBe("src/file3.vue")
+  })
+
+  it("hasToolCalls returns true for arrow read", () => {
+    const text = "→ Read src/test.ts"
+    expect(hasToolCalls(text)).toBe(true)
+  })
+
+  it("extractTextWithoutToolCalls removes arrow read", () => {
+    const text = "Before\n→ Read src/test.ts\nAfter"
+    const result = extractTextWithoutToolCalls(text)
+    expect(result).toBe("Before\n\nAfter")
+  })
+})

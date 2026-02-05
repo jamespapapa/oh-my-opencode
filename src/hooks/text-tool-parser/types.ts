@@ -155,3 +155,14 @@ export interface TodoItem {
 export interface TodoWriteParams {
   todos: string
 }
+
+export interface DelegateTaskParams {
+  description?: string
+  prompt?: string
+  run_in_background?: boolean | string
+  category?: string
+  subagent_type?: string
+  session_id?: string
+  load_skills?: string[] | string
+  command?: string
+}

@@ -1,13 +1,19 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { TextToolParserConfig } from "./types"
+import type { DelegateTaskToolOptions } from "../../tools/delegate-task/types"
 import { parseToolCalls, hasToolCalls } from "./parser"
-import { executeToolCall, formatToolResult } from "./executors"
+import { executeToolCall, formatToolResult, type TextToolExecutorContext } from "./executors"
 import { SUBAGENT_TOOL_INSTRUCTIONS } from "./prompt"
 import { TOOL_FORMAT_ERROR_FULL } from "../../shared/qwen-tool-guidance"
+
+export interface TextToolParserOptions {
+  delegateTaskOptions?: DelegateTaskToolOptions
+}
 
 interface TextToolParserContext {
   ctx: PluginInput
   config: TextToolParserConfig
+  executorOptions: TextToolParserOptions
 }
 
 interface MessageInfo {
@@ -42,7 +48,8 @@ export interface TextToolParserHook {
 
 export function createTextToolParserHook(
   ctx: PluginInput,
-  config?: Partial<TextToolParserConfig>
+  config?: Partial<TextToolParserConfig>,
+  executorOptions?: TextToolParserOptions
 ): TextToolParserHook {
   const fullConfig: TextToolParserConfig = {
     enabled: true,
@@ -58,7 +65,7 @@ export function createTextToolParserHook(
     }
   }
 
-  const context: TextToolParserContext = { ctx, config: fullConfig }
+  const context: TextToolParserContext = { ctx, config: fullConfig, executorOptions: executorOptions ?? {} }
   const processedMessages = new Set<string>()
 
   return {
@@ -94,7 +101,7 @@ async function processAssistantMessage(
   processedMessages: Set<string>,
   messageKey: string
 ): Promise<void> {
-  const { ctx, config } = context
+  const { ctx, config, executorOptions } = context
 
   try {
     const messagesResp = await ctx.client.session.messages({
@@ -120,6 +127,16 @@ async function processAssistantMessage(
 
     await ctx.client.session.abort({ path: { id: sessionID } }).catch(() => {})
 
+    const messageInfo = targetMessage.parts.find(p => p.type === "text") as { agent?: string } | undefined
+    const agent = (targetMessage as { info?: { agent?: string } }).info?.agent
+
+    const executorContext: TextToolExecutorContext = {
+      delegateTaskOptions: executorOptions.delegateTaskOptions,
+      sessionID,
+      messageID,
+      agent,
+    }
+
     const apiOnlyTools: string[] = []
     const executableResults: string[] = []
     
@@ -133,7 +150,7 @@ async function processAssistantMessage(
         continue
       }
 
-      const result = await executeToolCall(toolCall, config.workdir || ctx.directory)
+      const result = await executeToolCall(toolCall, config.workdir || ctx.directory, executorContext)
       
       if (result.isApiOnlyTool) {
         apiOnlyTools.push(toolCall.name)

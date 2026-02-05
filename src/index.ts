@@ -275,14 +275,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const questionLabelTruncator = createQuestionLabelTruncatorHook();
   const subagentQuestionBlocker = createSubagentQuestionBlockerHook();
 
-  const textToolParser = isHookEnabled("text-tool-parser")
-    ? createTextToolParserHook(ctx, {
-        enabled: true,
-        autoContinue: true,
-        workdir: ctx.directory,
-      })
-    : null;
-
   const toolCallInstructionInjector = isHookEnabled("tool-call-instruction-injector")
     ? createToolCallInstructionInjectorHook(ctx)
     : null;
@@ -399,7 +391,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
   const lookAt = isMultimodalLookerEnabled ? createLookAt(ctx) : null;
   const browserProvider =
     pluginConfig.browser_automation_engine?.provider ?? "playwright";
-  const delegateTask = createDelegateTask({
+  const delegateTaskOptions = {
     manager: backgroundManager,
     client: ctx.client,
     directory: ctx.directory,
@@ -407,7 +399,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     gitMasterConfig: pluginConfig.git_master,
     sisyphusJuniorModel: pluginConfig.agents?.["sisyphus-junior"]?.model,
     browserProvider,
-    onSyncSessionCreated: async (event) => {
+    onSyncSessionCreated: async (event: { sessionID: string; parentID: string; title: string }) => {
       log("[index] onSyncSessionCreated callback", {
         sessionID: event.sessionID,
         parentID: event.parentID,
@@ -424,7 +416,17 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         },
       });
     },
-  });
+  };
+  const delegateTask = createDelegateTask(delegateTaskOptions);
+
+  const textToolParser = isHookEnabled("text-tool-parser")
+    ? createTextToolParserHook(
+        ctx,
+        { enabled: true, autoContinue: true, workdir: ctx.directory },
+        { delegateTaskOptions }
+      )
+    : null;
+
   const disabledSkills = new Set(pluginConfig.disabled_skills ?? []);
   const systemMcpNames = getSystemMcpServerNames();
   const builtinSkills = createBuiltinSkills({ browserProvider }).filter(

@@ -12,10 +12,23 @@ import type {
   GrepParams,
   TodoWriteParams,
   TodoItem,
+  DelegateTaskParams,
 } from "./types"
+import type { DelegateTaskToolOptions } from "../../tools/delegate-task/types"
+
+/**
+ * Context required for executing delegate_task from text-tool-parser.
+ * This provides access to the same dependencies that the native delegate_task tool uses.
+ */
+export interface TextToolExecutorContext {
+  delegateTaskOptions?: DelegateTaskToolOptions
+  sessionID?: string
+  messageID?: string
+  agent?: string
+}
 
 const API_ONLY_TOOLS = [
-  "delegate_task",
+  // "delegate_task" - REMOVED: Now executed via text-tool-parser
   "lsp_diagnostics", 
   "lsp_goto_definition",
   "lsp_find_references",
@@ -32,7 +45,8 @@ const API_ONLY_TOOLS = [
 
 export async function executeToolCall(
   toolCall: ParsedToolCall,
-  workdir: string
+  workdir: string,
+  executorContext?: TextToolExecutorContext
 ): Promise<ToolExecutionResult> {
   const { name, parameters } = toolCall
 
@@ -63,6 +77,8 @@ export async function executeToolCall(
         return executeTodoWrite(parameters as unknown as TodoWriteParams)
       case "todoread":
         return executeTodoRead()
+      case "delegate_task":
+        return executeDelegateTask(parameters as unknown as DelegateTaskParams, executorContext)
       default:
         return { success: false, output: "", error: `Unknown tool: ${name}` }
     }
@@ -299,15 +315,26 @@ function executeTodoWrite(params: TodoWriteParams): ToolExecutionResult {
     return { success: false, output: "", error: "todos parameter is required" }
   }
 
+  if (todos.includes("[object Object]")) {
+    return { 
+      success: false, 
+      output: "", 
+      error: "todos contains '[object Object]' - model output malformed. Use proper JSON array format: [{\"id\": \"1\", \"content\": \"...\", \"status\": \"pending\", \"priority\": \"high\"}]" 
+    }
+  }
+
   try {
     const parsed = JSON.parse(todos) as TodoItem[]
+    if (!Array.isArray(parsed)) {
+      return { success: false, output: "", error: "todos must be a JSON array" }
+    }
     todoState = parsed
     return {
       success: true,
       output: `Updated todo list with ${parsed.length} item(s):\n${formatTodos(parsed)}`,
     }
   } catch (error) {
-    return { success: false, output: "", error: `Failed to parse todos JSON: ${error}` }
+    return { success: false, output: "", error: `Failed to parse todos JSON: ${error}. Expected format: [{"id": "1", "content": "...", "status": "pending", "priority": "high"}]` }
   }
 }
 
@@ -329,6 +356,188 @@ function formatTodos(todos: TodoItem[]): string {
     
     return `${i + 1}. ${statusIcon} [${t.priority}] ${t.content}`
   }).join("\n")
+}
+
+function normalizeDelegateParams(params: DelegateTaskParams): {
+  description: string
+  prompt: string
+  run_in_background: boolean
+  category?: string
+  subagent_type?: string
+  session_id?: string
+  load_skills?: string[]
+  command?: string
+} {
+  const runInBackground = 
+    params.run_in_background === "true" || 
+    params.run_in_background === true ||
+    String(params.run_in_background).toLowerCase() === "true"
+
+  let loadSkills: string[] | undefined
+  if (params.load_skills) {
+    if (Array.isArray(params.load_skills)) {
+      loadSkills = params.load_skills
+    } else if (typeof params.load_skills === "string") {
+      const trimmed = params.load_skills.trim()
+      if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        try {
+          loadSkills = JSON.parse(trimmed)
+        } catch {
+          loadSkills = trimmed.slice(1, -1).split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+        }
+      } else {
+        loadSkills = trimmed.split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+      }
+    }
+  }
+
+  return {
+    description: params.description || "Delegated task",
+    prompt: params.prompt || "",
+    run_in_background: runInBackground,
+    category: params.category,
+    subagent_type: params.subagent_type,
+    session_id: params.session_id,
+    load_skills: loadSkills,
+    command: params.command,
+  }
+}
+
+async function executeDelegateTask(
+  params: DelegateTaskParams,
+  executorContext?: TextToolExecutorContext
+): Promise<ToolExecutionResult> {
+  if (!executorContext?.delegateTaskOptions) {
+    return {
+      success: false,
+      output: "",
+      error: "delegate_task execution context not available. The text-tool-parser hook was not configured with delegate_task support.",
+    }
+  }
+
+  const { delegateTaskOptions, sessionID, messageID, agent } = executorContext
+  const normalized = normalizeDelegateParams(params)
+
+  if (!normalized.prompt) {
+    return {
+      success: false,
+      output: "",
+      error: "delegate_task requires 'prompt' parameter",
+    }
+  }
+
+  if (!normalized.category && !normalized.subagent_type && !normalized.session_id) {
+    return {
+      success: false,
+      output: "",
+      error: "delegate_task requires 'category' or 'subagent_type' parameter (or 'session_id' for continuation)",
+    }
+  }
+
+  try {
+    const {
+      resolveSkillContent,
+      resolveParentContext,
+      executeBackgroundContinuation,
+      executeSyncContinuation,
+      resolveCategoryExecution,
+      resolveSubagentExecution,
+      executeUnstableAgentTask,
+      executeBackgroundTask,
+      executeSyncTask,
+    } = await import("../../tools/delegate-task/executor")
+    const { buildSystemContent } = await import("../../tools/delegate-task/prompt-builder")
+
+    const ctx = {
+      sessionID: sessionID || "",
+      messageID: messageID || "",
+      agent: agent || "",
+      abort: new AbortController().signal,
+    }
+
+    const { content: skillContent, error: skillError } = await resolveSkillContent(
+      normalized.load_skills ?? [],
+      {
+        gitMasterConfig: delegateTaskOptions.gitMasterConfig,
+        browserProvider: delegateTaskOptions.browserProvider,
+      }
+    )
+
+    if (skillError) {
+      return { success: false, output: "", error: skillError }
+    }
+
+    const parentContext = resolveParentContext(ctx)
+
+    if (normalized.session_id) {
+      const result = normalized.run_in_background
+        ? await executeBackgroundContinuation(normalized as any, ctx, delegateTaskOptions, parentContext)
+        : await executeSyncContinuation(normalized as any, ctx, delegateTaskOptions)
+      return { success: true, output: result }
+    }
+
+    if (normalized.category && normalized.subagent_type) {
+      return { success: false, output: "", error: "Provide EITHER category OR subagent_type, not both." }
+    }
+
+    let systemDefaultModel: string | undefined
+    try {
+      const openCodeConfig = await delegateTaskOptions.client.config.get()
+      systemDefaultModel = (openCodeConfig as { data?: { model?: string } })?.data?.model
+    } catch {
+      systemDefaultModel = undefined
+    }
+
+    const inheritedModel = parentContext.model
+      ? `${parentContext.model.providerID}/${parentContext.model.modelID}`
+      : undefined
+
+    let agentToUse: string
+    let categoryModel: { providerID: string; modelID: string; variant?: string } | undefined
+    let categoryPromptAppend: string | undefined
+    let modelInfo: import("../../features/task-toast-manager/types").ModelFallbackInfo | undefined
+    let actualModel: string | undefined
+    let isUnstableAgent = false
+
+    if (normalized.category) {
+      const resolution = await resolveCategoryExecution(normalized as any, delegateTaskOptions, inheritedModel, systemDefaultModel)
+      if (resolution.error) {
+        return { success: false, output: "", error: resolution.error }
+      }
+      agentToUse = resolution.agentToUse
+      categoryModel = resolution.categoryModel
+      categoryPromptAppend = resolution.categoryPromptAppend
+      modelInfo = resolution.modelInfo
+      actualModel = resolution.actualModel
+      isUnstableAgent = resolution.isUnstableAgent
+
+      if (isUnstableAgent && !normalized.run_in_background) {
+        const systemContent = buildSystemContent({ skillContent, categoryPromptAppend, agentName: agentToUse })
+        const result = await executeUnstableAgentTask(normalized as any, ctx, delegateTaskOptions, parentContext, agentToUse, categoryModel, systemContent, actualModel)
+        return { success: true, output: result }
+      }
+    } else {
+      const resolution = await resolveSubagentExecution(normalized as any, delegateTaskOptions, parentContext.agent, "quick, deep, ultrabrain")
+      if (resolution.error) {
+        return { success: false, output: "", error: resolution.error }
+      }
+      agentToUse = resolution.agentToUse
+      categoryModel = resolution.categoryModel
+    }
+
+    const systemContent = buildSystemContent({ skillContent, categoryPromptAppend, agentName: agentToUse })
+
+    if (normalized.run_in_background) {
+      const result = await executeBackgroundTask(normalized as any, ctx, delegateTaskOptions, parentContext, agentToUse, categoryModel, systemContent)
+      return { success: true, output: result }
+    }
+
+    const result = await executeSyncTask(normalized as any, ctx, delegateTaskOptions, parentContext, agentToUse, categoryModel, systemContent, modelInfo)
+    return { success: true, output: result }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    return { success: false, output: "", error: `delegate_task execution failed: ${errorMessage}` }
+  }
 }
 
 export function formatToolResult(toolCall: ParsedToolCall, result: ToolExecutionResult): string {
