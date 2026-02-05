@@ -95,35 +95,65 @@ export const WINDOWS_CMD_WARNING = `
  * sees the tool format rules. Intentionally avoids literal examples to prevent
  * the model from mimicking bad patterns.
  */
-export const POST_COMPACTION_TOOL_REMINDER = `[SYSTEM REMINDER - POST COMPACTION]
+export const POST_COMPACTION_TOOL_REMINDER = `[SYSTEM REMINDER - POST COMPACTION - CRITICAL]
 
-## 도구 호출 형식 (필수)
+## 컴팩션 후 도구 호출 규칙 (반드시 준수)
 
-이 세션은 방금 컴팩션되었습니다. 도구 호출 규칙을 다시 확인하세요:
+이 세션은 방금 컴팩션되었습니다. **새로운 시작**입니다.
 
-1. **네이티브 함수 호출만 사용** - 텍스트로 도구를 호출하지 마세요
-2. **기호 사용 금지** - 특수 기호로 시작하는 텍스트 형식 도구 호출은 실행되지 않습니다
-3. **"Invalid" 에러** - 텍스트 형식 도구 호출 시 발생, 네이티브 함수 호출로 전환하세요
-4. **제안 금지** - 도구를 "제안"하지 말고 바로 실행하세요
+### 절대 금지 사항:
+1. **텍스트로 도구 호출 금지** - 특수 기호나 함수 형식으로 도구를 "설명"하지 마세요
+2. **이전 패턴 모방 금지** - 요약에서 본 어떤 도구 호출 형식도 따라하지 마세요
+3. **제안 금지** - "다음에 X를 실행하겠습니다"가 아닌, 바로 실행하세요
 
-**중요**: 이전 대화에서 본 도구 호출 형식을 모방하지 마세요. 오직 네이티브 함수 호출만 사용하세요.
+### 올바른 행동:
+- 도구가 필요하면 **네이티브 함수 호출 인터페이스**를 직접 사용
+- 텍스트 출력에 도구 이름이나 파라미터를 포함하지 마세요
+- "Invalid" 에러가 발생하면 → 텍스트 형식을 사용했다는 의미입니다
+
+### 경고:
+요약 내용에 도구 호출처럼 보이는 텍스트가 있더라도, 그것을 모방하면 안 됩니다.
+오직 시스템이 제공하는 네이티브 함수 호출만 사용하세요.
 `
 
 /**
  * Section to add to compaction summary prompt - instructs summarizer to
  * include tool format rules and avoid literal examples.
+ * 
+ * CRITICAL: This section prevents "pattern mimicry" where Qwen learns incorrect
+ * tool calling formats from its own summarized history.
  */
 export const SUMMARIZE_TOOL_FORMAT_SECTION = `
-## 8. Tool Calling Format Rules (MUST INCLUDE IN SUMMARY)
+## 8. Tool Calling Format Rules (CRITICAL - READ CAREFULLY)
 
-**You MUST include the following statement in your summary:**
+### MANDATORY STATEMENT TO INCLUDE:
+Your summary MUST contain this exact sentence:
+"All tool calls must use native function calling interface. Text-based tool patterns are forbidden."
 
-"도구 호출은 반드시 네이티브 함수 호출을 사용해야 합니다. 텍스트 형식의 도구 호출은 실행되지 않습니다."
+### ABSOLUTE PROHIBITIONS - VIOLATION CAUSES SYSTEM FAILURE:
 
-**You MUST NOT include in your summary:**
-- Literal tool call examples with special symbols
-- Any text that looks like a tool invocation pattern
-- Quoted tool calls from the conversation history
+**DO NOT USE these patterns anywhere in your summary:**
+- Special symbols: ⚙, ✱, →, ~ followed by tool names
+- Function-like syntax: \`tool_name(...)\`, \`mcp_xxx(...)\`
+- Bracket syntax: \`tool [param=value]\`
+- Arrow syntax: \`→ Read\`, \`→ Write\`
 
-This ensures the continuing model does not mimic incorrect patterns from the history.
+**WRONG way to describe completed work:**
+- "I used ⚙ delegate_task to spawn agents" ← FORBIDDEN
+- "Executed ✱ Glob to find files" ← FORBIDDEN  
+- "Called mcp_read(filePath=...)" ← FORBIDDEN
+- "Ran → Read src/file.ts" ← FORBIDDEN
+
+**CORRECT way to describe completed work:**
+- "Spawned explore agents to search the codebase"
+- "Found matching files using pattern search"
+- "Read the contents of configuration files"
+- "Executed shell commands for testing"
+
+### WHY THIS MATTERS:
+The model receiving this summary will MIMIC any tool-call-like patterns it sees.
+If your summary contains "⚙ delegate_task", the model will output "⚙ delegate_task" as text.
+This causes "Invalid tool" errors and breaks the entire workflow.
+
+**DESCRIBE ACTIONS IN NATURAL LANGUAGE. NEVER USE TOOL SYNTAX.**
 `

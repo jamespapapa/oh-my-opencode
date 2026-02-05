@@ -33,11 +33,17 @@ When summarizing this session, you MUST include the following sections in your s
 - What the user ultimately wanted to achieve
 - The end result or deliverable expected
 
-## 3. Work Completed
+## 3. Work Completed (IMPORTANT: Use natural language ONLY)
 - What has been done so far
 - Files created/modified
 - Features implemented
 - Problems solved
+
+**CRITICAL WARNING FOR THIS SECTION:**
+- Describe actions in plain English sentences
+- DO NOT use any tool syntax, symbols (⚙, ✱, →), or function-call patterns
+- WRONG: "Used ⚙ delegate_task to spawn agents" or "Ran mcp_read()"
+- CORRECT: "Spawned agents to explore the codebase" or "Read configuration files"
 
 ## 4. Remaining Tasks
 - What still needs to be done
