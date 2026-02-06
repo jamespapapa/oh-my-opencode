@@ -11,7 +11,7 @@ describe("createBuiltinAgents with model overrides", () => {
 
     // #then
     expect(agents.Sisyphus.model).toBe("anthropic/claude-opus-4-5")
-    expect(agents.Sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.Sisyphus.thinking).toEqual({ type: "enabled", budgetTokens: 8000 })
     expect(agents.Sisyphus.reasoningEffort).toBeUndefined()
   })
 
@@ -67,7 +67,7 @@ describe("createBuiltinAgents with model overrides", () => {
 
     // #then
     expect(agents.oracle.model).toBe("anthropic/claude-sonnet-4")
-    expect(agents.oracle.thinking).toEqual({ type: "enabled", budgetTokens: 32000 })
+    expect(agents.oracle.thinking).toEqual({ type: "enabled", budgetTokens: 8000 })
     expect(agents.oracle.reasoningEffort).toBeUndefined()
     expect(agents.oracle.textVerbosity).toBeUndefined()
   })

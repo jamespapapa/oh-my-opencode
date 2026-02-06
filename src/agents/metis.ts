@@ -289,7 +289,7 @@ export function createMetisAgent(model: string = DEFAULT_MODEL): AgentConfig {
     temperature: 0.3,
     ...metisRestrictions,
     prompt: METIS_SYSTEM_PROMPT,
-    thinking: { type: "enabled", budgetTokens: 32000 },
+    thinking: { type: "enabled", budgetTokens: 8000 },
   } as AgentConfig
 }
 

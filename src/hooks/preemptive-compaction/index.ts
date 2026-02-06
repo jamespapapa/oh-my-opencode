@@ -54,7 +54,10 @@ const CLAUDE_DEFAULT_CONTEXT_LIMIT =
     ? 1_000_000
     : 200_000
 
-function isSupportedModel(modelID: string): boolean {
+const INTERNAL_CONTEXT_LIMIT = 50_000
+
+function isSupportedModel(modelID: string, providerID?: string): boolean {
+  if (providerID === "internal") return true
   return CLAUDE_MODEL_PATTERN.test(modelID)
 }
 
@@ -114,13 +117,14 @@ export function createPreemptiveCompactionHook(
     const modelID = lastAssistant.modelID ?? ""
     const providerID = lastAssistant.providerID ?? ""
 
-    if (!isSupportedModel(modelID)) {
-      log("[preemptive-compaction] skipping unsupported model", { modelID })
+    if (!isSupportedModel(modelID, providerID)) {
+      log("[preemptive-compaction] skipping unsupported model", { modelID, providerID })
       return
     }
 
     const configLimit = getModelLimit?.(providerID, modelID)
-    const contextLimit = configLimit ?? CLAUDE_DEFAULT_CONTEXT_LIMIT
+    const defaultLimit = providerID === "internal" ? INTERNAL_CONTEXT_LIMIT : CLAUDE_DEFAULT_CONTEXT_LIMIT
+    const contextLimit = configLimit ?? defaultLimit
     const totalUsed = tokens.input + tokens.cache.read + tokens.output
 
     if (totalUsed < MIN_TOKENS_FOR_COMPACTION) return

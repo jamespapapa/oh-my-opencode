@@ -1,5 +1,6 @@
 import type { AgentConfig } from "@opencode-ai/sdk"
 import { isGptModel } from "./types"
+import { getKoreanInstruction } from "./korean-instruction"
 import type { AvailableAgent, AvailableTool, AvailableSkill } from "./sisyphus-prompt-builder"
 import {
   buildKeyTriggersSection,
@@ -614,9 +615,10 @@ export function createSisyphusAgent(
 ): AgentConfig {
   const tools = availableToolNames ? categorizeTools(availableToolNames) : []
   const skills = availableSkills ?? []
-  const prompt = availableAgents
+  const basePrompt = availableAgents
     ? buildDynamicSisyphusPrompt(availableAgents, tools, skills)
     : buildDynamicSisyphusPrompt([], tools, skills)
+  const prompt = getKoreanInstruction() + "\n" + basePrompt
 
   // Note: question permission allows agent to ask user questions via OpenCode's QuestionTool
   // SDK type doesn't include 'question' yet, but OpenCode runtime supports it
@@ -637,7 +639,7 @@ export function createSisyphusAgent(
     return { ...base, reasoningEffort: "medium" }
   }
 
-  return { ...base, thinking: { type: "enabled", budgetTokens: 32000 } }
+  return { ...base, thinking: { type: "enabled", budgetTokens: 8000 } }
 }
 
 export const sisyphusAgent = createSisyphusAgent()
