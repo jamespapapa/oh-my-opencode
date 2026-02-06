@@ -240,15 +240,15 @@ export const SISYPHUS_TASK_DESCRIPTION = `Spawn agent task with category-based o
 
 MUTUALLY EXCLUSIVE: Provide EITHER category OR subagent_type, not both (unless resuming).
 
-- category: Use predefined category (${BUILTIN_CATEGORIES}) → Spawns Sisyphus-Junior with category config
-- subagent_type: Use specific agent directly (e.g., "oracle", "explore")
-- run_in_background: true=async (returns task_id), false=sync (default). Use true ONLY for parallel exploration.
-- session_id: Session ID to resume. Continues agent with FULL CONTEXT PRESERVED.
-- load_skills: Array of skill names (e.g., ["playwright"]). Default: [].
+**Required:**
+- prompt: Full detailed prompt for the agent
 
-**WHEN TO USE session_id:**
-- Task failed/incomplete → session_id with "fix: [specific issue]"
-- Need follow-up on previous result → session_id with additional question
-- Multi-turn conversation with same agent → always session_id instead of new task
+**Optional (all have defaults):**
+- category: Predefined category (${BUILTIN_CATEGORIES})
+- subagent_type: Specific agent (e.g., "oracle", "explore")
+- description: Short task description (default: derived from prompt)
+- run_in_background: true=async, false=sync (default: false)
+- load_skills: Skill names array (default: [])
+- session_id: Resume previous session
 
 Prompts MUST be in English.`

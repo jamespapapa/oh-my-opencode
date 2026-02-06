@@ -119,7 +119,7 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
   return tool({
     description: SISYPHUS_TASK_DESCRIPTION,
     args: {
-      description: tool.schema.string().describe("Short task description"),
+      description: tool.schema.string().optional().describe("Short task description (default: derived from prompt)"),
       prompt: tool.schema.string().describe("Full detailed prompt for the agent"),
       category: tool.schema.string().optional().describe(`Category name (e.g., ${CATEGORY_EXAMPLES}). Mutually exclusive with subagent_type.`),
       subagent_type: tool.schema.string().optional().describe("Agent name directly (e.g., 'oracle', 'explore'). Mutually exclusive with category."),
@@ -133,6 +133,7 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
       // Default values for optional parameters (Qwen compatibility)
       const runInBackground = args.run_in_background === true
       const loadSkills = args.load_skills ?? []
+      const taskDescription = args.description ?? args.prompt.slice(0, 50).replace(/\n/g, " ") + (args.prompt.length > 50 ? "..." : "")
 
       let skillContent: string | undefined
       if (loadSkills.length > 0) {
@@ -205,14 +206,14 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         if (toastManager) {
           toastManager.addTask({
             id: taskId,
-            description: args.description,
+            description: taskDescription,
             agent: "resume",
             isBackground: false,
           })
         }
 
         ctx.metadata?.({
-          title: `Resume: ${args.description}`,
+          title: `Resume: ${taskDescription}`,
           metadata: { sessionId: resumeSessionId, sync: true },
         })
 
@@ -369,7 +370,7 @@ ${textContent || "(No text output)"}`
       if (runInBackground) {
         try {
           const task = await manager.launch({
-            description: args.description,
+            description: taskDescription,
             prompt: args.prompt,
             agent: agentToUse,
             parentSessionID: ctx.sessionID,
@@ -382,7 +383,7 @@ ${textContent || "(No text output)"}`
           })
 
           ctx.metadata?.({
-            title: args.description,
+            title: taskDescription,
             metadata: { sessionId: task.sessionID, category: args.category },
           })
 
@@ -414,7 +415,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
         const createResult = await client.session.create({
           body: {
             parentID: ctx.sessionID,
-            title: `Task: ${args.description}`,
+            title: `Task: ${taskDescription}`,
           },
           query: {
             directory: parentDirectory,
@@ -434,7 +435,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
         if (toastManager) {
           toastManager.addTask({
             id: taskId,
-            description: args.description,
+            description: taskDescription,
             agent: agentToUse,
             isBackground: false,
             skills: loadSkills,
@@ -442,7 +443,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
         }
 
         ctx.metadata?.({
-          title: args.description,
+          title: taskDescription,
           metadata: { sessionId: sessionID, category: args.category, sync: true },
         })
 

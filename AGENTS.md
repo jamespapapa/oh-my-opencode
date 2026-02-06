@@ -23,13 +23,19 @@ OpenCode 플러그인. 삼성생명 폐쇄망 환경에 최적화된 최소 설�
 ### Agent Delegation
 
 ```typescript
-// delegate_task - 에이전트 위임
+// delegate_task - 에이전트 위임 (최소 호출)
 delegate_task({
-  description: "작업 설명",
   prompt: "상세 프롬프트",
-  category: "quick",        // 또는 subagent_type
-  run_in_background: false, // 생략 시 false
-  load_skills: []           // 생략 시 []
+  category: "quick"  // 또는 subagent_type
+})
+
+// 모든 파라미터 (description, run_in_background, load_skills 모두 optional)
+delegate_task({
+  description: "작업 설명",  // 생략 시 prompt에서 파생
+  prompt: "상세 프롬프트",
+  category: "quick",
+  run_in_background: false,  // 생략 시 false
+  load_skills: []            // 생략 시 []
 })
 ```
 
@@ -173,6 +179,7 @@ bun test               # 테스트 실행
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
+| `description` | prompt 앞 50자 | 작업 설명 |
 | `run_in_background` | `false` | 동기 실행 |
 | `load_skills` | `[]` | 스킬 없음 |
 
