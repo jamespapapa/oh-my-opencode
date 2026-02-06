@@ -1,204 +1,213 @@
-# PROJECT KNOWLEDGE BASE
+# SLI-MINIMAL KNOWLEDGE BASE
 
-**Generated:** 2026-01-13T14:45:00+09:00
-**Commit:** e47b5514
-**Branch:** dev
+**Branch:** sli-minimal
+**Base:** 1/14 fork (commit 325ce12)
+**Target:** Samsung Life Insurance 폐쇄망 (Qwen3-235b)
 
 ## OVERVIEW
 
-OpenCode plugin implementing Claude Code/AmpCode features. Multi-model agent orchestration (GPT-5.2, Claude, Gemini, Grok), LSP tools (11), AST-Grep search, MCP integrations (context7, websearch_exa, grep_app). "oh-my-zsh" for OpenCode.
+OpenCode 플러그인. 삼성생명 폐쇄망 환경에 최적화된 최소 설정.
+- budgetTokens: 8000 (Qwen 호환)
+- 한국어 응답 지시 포함
+- 50K context window (preemptive-compaction)
 
-## STRUCTURE
+## CRITICAL: 1/14 TOOL NAMES
 
-```
-oh-my-opencode/
-├── src/
-│   ├── agents/        # AI agents (7+): Sisyphus, oracle, librarian, explore, frontend, document-writer, multimodal-looker, prometheus, metis, momus
-│   ├── hooks/         # 22+ lifecycle hooks - see src/hooks/AGENTS.md
-│   ├── tools/         # LSP, AST-Grep, Grep, Glob, session mgmt - see src/tools/AGENTS.md
-│   ├── features/      # Claude Code compat layer - see src/features/AGENTS.md
-│   ├── auth/          # Google Antigravity OAuth - see src/auth/AGENTS.md
-│   ├── shared/        # Cross-cutting utilities - see src/shared/AGENTS.md
-│   ├── cli/           # CLI installer, doctor - see src/cli/AGENTS.md
-│   ├── mcp/           # MCP configs: context7, grep_app, websearch
-│   ├── config/        # Zod schema (12k lines), TypeScript types
-│   └── index.ts       # Main plugin entry (563 lines)
-├── script/            # build-schema.ts, publish.ts, generate-changelog.ts
-├── assets/            # JSON schema
-└── dist/              # Build output (ESM + .d.ts)
-```
+**이 버전은 upstream/dev와 도구 이름이 다름!**
 
-## WHERE TO LOOK
+| 1/14 (sli-minimal) | upstream/dev | 차이점 |
+|-------------------|--------------|--------|
+| `sisyphus_task` | `delegate_task` | 에이전트 위임 |
+| `skills` parameter | `load_skills` parameter | 스킬 파라미터명 |
+| 11 LSP tools | 6 LSP tools | LSP 도구 수 |
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Add agent | `src/agents/` | Create .ts, add to builtinAgents in index.ts, update types.ts |
-| Add hook | `src/hooks/` | Create dir with createXXXHook(), export from index.ts |
-| Add tool | `src/tools/` | Dir with index/types/constants/tools.ts, add to builtinTools |
-| Add MCP | `src/mcp/` | Create config, add to index.ts and types.ts |
-| Add skill | `src/features/builtin-skills/` | Create skill dir with SKILL.md |
-| LSP behavior | `src/tools/lsp/` | client.ts (connection), tools.ts (handlers) |
-| AST-Grep | `src/tools/ast-grep/` | napi.ts for @ast-grep/napi binding |
-| Google OAuth | `src/auth/antigravity/` | OAuth plugin for Google/Gemini models |
-| Config schema | `src/config/schema.ts` | Zod schema, run `bun run build:schema` after changes |
-| Claude Code compat | `src/features/claude-code-*-loader/` | Command, skill, agent, mcp loaders |
-| Background agents | `src/features/background-agent/` | manager.ts for task management |
-| Skill MCP | `src/features/skill-mcp-manager/` | MCP servers embedded in skills |
-| Interactive terminal | `src/tools/interactive-bash/` | tmux session management |
-| CLI installer | `src/cli/install.ts` | Interactive TUI installation |
-| Doctor checks | `src/cli/doctor/checks/` | Health checks for environment |
-| Shared utilities | `src/shared/` | Cross-cutting utilities |
-| Slash commands | `src/hooks/auto-slash-command/` | Auto-detect and execute `/command` patterns |
-| Ralph Loop | `src/hooks/ralph-loop/` | Self-referential dev loop until completion |
-| Orchestrator | `src/hooks/sisyphus-orchestrator/` | Main orchestration hook (677 lines) |
+## AVAILABLE TOOLS
 
-## TDD (Test-Driven Development)
+### Agent Delegation
 
-**MANDATORY for new features and bug fixes.** Follow RED-GREEN-REFACTOR:
-
-```
-1. RED    - Write failing test first (test MUST fail)
-2. GREEN  - Write MINIMAL code to pass (nothing more)
-3. REFACTOR - Clean up while tests stay GREEN
-4. REPEAT - Next test case
+```typescript
+// sisyphus_task - 에이전트 위임 (delegate_task 아님!)
+sisyphus_task({
+  description: "작업 설명",
+  prompt: "상세 프롬프트",
+  category: "quick",        // 또는 subagent_type
+  run_in_background: false, // 필수
+  skills: []                // 필수 (load_skills 아님!)
+})
 ```
 
-| Phase | Action | Verification |
-|-------|--------|--------------|
-| **RED** | Write test describing expected behavior | `bun test` -> FAIL (expected) |
-| **GREEN** | Implement minimum code to pass | `bun test` -> PASS |
-| **REFACTOR** | Improve code quality, remove duplication | `bun test` -> PASS (must stay green) |
+**Categories:**
+- `quick`: 단순 작업
+- `visual-engineering`: 프론트엔드/UI
+- `ultrabrain`: 복잡한 로직
+- `deep`: 깊은 분석
+- `artistry`: 창의적 접근
+- `writing`: 문서 작성
+- `unspecified-low`: 기타 (저노력)
+- `unspecified-high`: 기타 (고노력)
 
-**Rules:**
-- NEVER write implementation before test
-- NEVER delete failing tests to "pass" - fix the code
-- One test at a time - don't batch
-- Test file naming: `*.test.ts` alongside source
-- BDD comments: `#given`, `#when`, `#then` (same as AAA)
+### LSP Tools (11개)
 
-## CONVENTIONS
+| Tool | Description |
+|------|-------------|
+| `lsp_hover` | 심볼 타입/문서 조회 |
+| `lsp_goto_definition` | 정의로 이동 |
+| `lsp_find_references` | 참조 찾기 |
+| `lsp_document_symbols` | 파일 심볼 목록 |
+| `lsp_workspace_symbols` | 워크스페이스 심볼 검색 |
+| `lsp_diagnostics` | 에러/경고 조회 |
+| `lsp_servers` | LSP 서버 상태 |
+| `lsp_prepare_rename` | 이름 변경 가능 여부 확인 |
+| `lsp_rename` | 심볼 이름 변경 |
+| `lsp_code_actions` | 퀵픽스/리팩토링 조회 |
+| `lsp_code_action_resolve` | 코드 액션 실행 |
 
-- **Package manager**: Bun only (`bun run`, `bun build`, `bunx`)
-- **Types**: bun-types (not @types/node)
-- **Build**: `bun build` (ESM) + `tsc --emitDeclarationOnly`
-- **Exports**: Barrel pattern in index.ts; explicit named exports for tools/hooks
-- **Naming**: kebab-case directories, createXXXHook/createXXXTool factories
-- **Testing**: BDD comments `#given/#when/#then`, TDD workflow (RED-GREEN-REFACTOR), 82 test files
-- **Temperature**: 0.1 for code agents, max 0.3
+### AST-Grep Tools
 
-## ANTI-PATTERNS (THIS PROJECT)
+| Tool | Description |
+|------|-------------|
+| `ast_grep_search` | AST 패턴 검색 |
+| `ast_grep_replace` | AST 패턴 치환 |
 
-- **npm/yarn**: Use bun exclusively
-- **@types/node**: Use bun-types
-- **Bash file ops**: Never mkdir/touch/rm/cp/mv for file creation in code
-- **Direct bun publish**: GitHub Actions workflow_dispatch only (OIDC provenance)
-- **Local version bump**: Version managed by CI workflow
-- **Year 2024**: NEVER use 2024 in code/prompts (use current year)
-- **Rush completion**: Never mark tasks complete without verification
-- **Over-exploration**: Stop searching when sufficient context found
-- **High temperature**: Don't use >0.3 for code-related agents
-- **Broad tool access**: Prefer explicit `include` over unrestricted access
-- **Sequential agent calls**: Use `sisyphus_task` for parallel execution
-- **Heavy PreToolUse logic**: Slows every tool call
-- **Self-planning for complex tasks**: Spawn planning agent (Prometheus) instead
-- **Trust agent self-reports**: ALWAYS verify results independently
-- **Skip TODO creation**: Multi-step tasks MUST have todos first
-- **Batch completions**: Mark TODOs complete immediately, don't group
-- **Giant commits**: 3+ files = 2+ commits minimum
-- **Separate test from impl**: Same commit always
+### Search Tools
 
-## UNIQUE STYLES
+| Tool | Description |
+|------|-------------|
+| `grep` | 내용 검색 (정규식) |
+| `glob` | 파일 패턴 검색 |
 
-- **Platform**: Union type `"darwin" | "linux" | "win32" | "unsupported"`
-- **Optional props**: Extensive `?` for optional interface properties
-- **Flexible objects**: `Record<string, unknown>` for dynamic configs
-- **Error handling**: Consistent try/catch with async/await
-- **Agent tools**: `tools: { include: [...] }` or `tools: { exclude: [...] }`
-- **Temperature**: Most agents use `0.1` for consistency
-- **Hook naming**: `createXXXHook` function convention
-- **Factory pattern**: Components created via `createXXX()` functions
+### Session Tools
 
-## AGENT MODELS
+| Tool | Description |
+|------|-------------|
+| `session_list` | 세션 목록 |
+| `session_read` | 세션 메시지 읽기 |
+| `session_search` | 세션 내 검색 |
+| `session_info` | 세션 정보 |
 
-| Agent | Default Model | Purpose |
-|-------|---------------|---------|
-| Sisyphus | anthropic/claude-opus-4-5 | Primary orchestrator with extended thinking |
-| oracle | openai/gpt-5.2 | Read-only consultation. High-IQ debugging, architecture |
-| librarian | opencode/glm-4.7-free | Multi-repo analysis, docs |
-| explore | opencode/grok-code | Fast codebase exploration |
-| frontend-ui-ux-engineer | google/gemini-3-pro-preview | UI generation |
-| document-writer | google/gemini-3-pro-preview | Technical docs |
-| multimodal-looker | google/gemini-3-flash | PDF/image analysis |
-| Prometheus (Planner) | anthropic/claude-opus-4-5 | Strategic planning, interview-driven |
-| Metis (Plan Consultant) | anthropic/claude-sonnet-4-5 | Pre-planning analysis |
-| Momus (Plan Reviewer) | anthropic/claude-sonnet-4-5 | Plan validation |
+### Background Tools
+
+| Tool | Description |
+|------|-------------|
+| `background_output` | 백그라운드 작업 결과 |
+| `background_cancel` | 백그라운드 작업 취소 |
+
+### Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `sisyphus_task` | 카테고리 기반 위임 |
+| `call_omo_agent` | explore/librarian 에이전트 호출 |
+| `look_at` | 멀티모달 분석 (PDF/이미지) |
+
+### Skill Tools
+
+| Tool | Description |
+|------|-------------|
+| `skill` | 스킬 로드 |
+| `skill_mcp` | 스킬 내장 MCP 호출 |
+| `slashcommand` | 슬래시 명령 실행 |
+
+### Terminal
+
+| Tool | Description |
+|------|-------------|
+| `interactive_bash` | tmux 세션 관리 |
+
+## DELEGATION EXAMPLES
+
+### 올바른 사용법 (1/14 버전)
+
+```typescript
+// 단순 작업 위임
+sisyphus_task({
+  description: "타입 에러 수정",
+  prompt: "src/auth.ts 파일의 타입 에러를 수정해주세요.",
+  category: "quick",
+  run_in_background: false,
+  skills: []  // 필수!
+})
+
+// 스킬과 함께 위임
+sisyphus_task({
+  description: "컴포넌트 리팩토링",
+  prompt: "Button 컴포넌트를 리팩토링해주세요.",
+  category: "visual-engineering",
+  run_in_background: false,
+  skills: ["frontend-ui-ux"]  // load_skills 아님!
+})
+
+// 특정 에이전트 직접 호출
+sisyphus_task({
+  description: "아키텍처 상담",
+  prompt: "현재 인증 구조에 대해 조언해주세요.",
+  subagent_type: "oracle",  // category 대신
+  run_in_background: false,
+  skills: []
+})
+```
+
+### 잘못된 사용법 (upstream 문법)
+
+```typescript
+// ❌ WRONG - delegate_task는 없음!
+delegate_task({
+  category: "quick",
+  load_skills: [],  // 잘못된 파라미터명
+  ...
+})
+
+// ❌ WRONG - load_skills 아님!
+sisyphus_task({
+  ...
+  load_skills: ["git-master"]  // skills로 해야 함
+})
+```
+
+## AVAILABLE SKILLS
+
+| Skill | Domain |
+|-------|--------|
+| `playwright` | 브라우저 자동화 |
+| `frontend-ui-ux` | UI/UX 개발 |
+| `git-master` | Git 작업 |
+| `dev-browser` | 브라우저 자동화 (persistent) |
 
 ## COMMANDS
 
 ```bash
-bun run typecheck      # Type check
+bun run typecheck      # 타입 체크
 bun run build          # ESM + declarations + schema
 bun run rebuild        # Clean + Build
-bun run build:schema   # Schema only
-bun test               # Run tests (82 test files, 2559+ BDD assertions)
+bun test               # 테스트 실행
 ```
 
-## DEPLOYMENT
+## SLI-MINIMAL CHANGES
 
-**GitHub Actions workflow_dispatch only**
+1/14 원본에서 변경된 내용:
 
-1. Never modify package.json version locally
-2. Commit & push changes
-3. Trigger `publish` workflow: `gh workflow run publish -f bump=patch`
+| File | Change |
+|------|--------|
+| `src/agents/korean-instruction.ts` | **NEW** - 한국어 응답 지시 |
+| `src/agents/sisyphus.ts` | budgetTokens 8000, 한국어 지시 import |
+| `src/agents/oracle.ts` | budgetTokens 8000 |
+| `src/agents/metis.ts` | budgetTokens 8000 |
+| `src/agents/momus.ts` | budgetTokens 8000 |
+| `src/agents/sisyphus-junior.ts` | budgetTokens 8000 (2곳) |
+| `src/agents/utils.test.ts` | 테스트 기대값 8000 |
+| `src/hooks/preemptive-compaction/index.ts` | internal provider 지원 (50K context) |
 
-**Critical**: Never `bun publish` directly. Never bump version locally.
+## ANTI-PATTERNS
 
-## CI PIPELINE
-
-- **ci.yml**: Parallel test/typecheck, build verification, auto-commit schema on master, rolling `next` draft release
-- **publish.yml**: Manual workflow_dispatch, version bump, changelog, OIDC npm publish
-- **sisyphus-agent.yml**: Agent-in-CI for automated issue handling via `@sisyphus-dev-ai` mentions
-
-## COMPLEXITY HOTSPOTS
-
-| File | Lines | Description |
-|------|-------|-------------|
-| `src/agents/orchestrator-sisyphus.ts` | 1486 | Orchestrator agent, 7-section delegation, accumulated wisdom |
-| `src/features/builtin-skills/skills.ts` | 1230 | Skill definitions (frontend-ui-ux, playwright) |
-| `src/agents/prometheus-prompt.ts` | 988 | Planning agent, interview mode, multi-agent validation |
-| `src/auth/antigravity/fetch.ts` | 798 | Token refresh, multi-account rotation, endpoint fallback |
-| `src/auth/antigravity/thinking.ts` | 755 | Thinking block extraction, signature management |
-| `src/cli/config-manager.ts` | 725 | JSONC parsing, multi-level config, env detection |
-| `src/hooks/sisyphus-orchestrator/index.ts` | 677 | Orchestrator hook impl |
-| `src/agents/sisyphus.ts` | 643 | Main Sisyphus prompt |
-| `src/tools/lsp/client.ts` | 632 | LSP protocol, JSON-RPC |
-| `src/features/background-agent/manager.ts` | 825 | Task lifecycle, concurrency |
-| `src/auth/antigravity/response.ts` | 598 | Response transformation, streaming |
-| `src/tools/sisyphus-task/tools.ts` | 583 | Category-based task delegation |
-| `src/index.ts` | 563 | Main plugin, all hook/tool init |
-| `src/hooks/anthropic-context-window-limit-recovery/executor.ts` | 555 | Multi-stage recovery |
-
-## MCP ARCHITECTURE
-
-Three-tier MCP system:
-1. **Built-in**: `websearch` (Exa), `context7` (docs), `grep_app` (GitHub search)
-2. **Claude Code compatible**: `.mcp.json` files with `${VAR}` expansion
-3. **Skill-embedded**: YAML frontmatter in skills (e.g., playwright)
-
-## CONFIG SYSTEM
-
-- **Zod validation**: `src/config/schema.ts` (12k lines)
-- **JSONC support**: Comments and trailing commas
-- **Multi-level**: User (`~/.config/opencode/`) → Project (`.opencode/`)
-- **CLI doctor**: Validates config and reports errors
+- **delegate_task 사용**: `sisyphus_task` 사용해야 함
+- **load_skills 파라미터**: `skills` 사용해야 함
+- **run_in_background 생략**: 필수 파라미터
+- **skills 생략**: 필수 파라미터 (빈 배열이라도)
+- **budgetTokens 32000**: Qwen에서 작동 안 함 (8000 사용)
 
 ## NOTES
 
-- **Testing**: Bun native test (`bun test`), BDD-style `#given/#when/#then`, 82 test files
-- **OpenCode**: Requires >= 1.0.150
-- **Multi-lang docs**: README.md (EN), README.ko.md (KO), README.ja.md (JA), README.zh-cn.md (ZH-CN)
-- **Config**: `~/.config/opencode/oh-my-opencode.json` (user) or `.opencode/oh-my-opencode.json` (project)
-- **Trusted deps**: @ast-grep/cli, @ast-grep/napi, @code-yeongyu/comment-checker
-- **JSONC support**: Config files support comments (`// comment`, `/* block */`) and trailing commas
-- **Claude Code Compat**: Full compatibility layer for settings.json hooks, commands, skills, agents, MCPs
-- **Skill MCP**: Skills can embed MCP server configs in YAML frontmatter
+- **Build size**: 2.37 MB
+- **Context window**: 50K (internal provider)
+- **Model**: Qwen3-235b
+- **Environment**: 폐쇄망 (closed network)
