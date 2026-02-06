@@ -47,9 +47,9 @@ For ANY non-trivial task:
 
 \`\`\`typescript
 // FIRST ACTION on receiving any non-trivial request:
-sisyphus_task(subagent_type="explore", run_in_background=true, skills=[], description="Find relevant code", prompt="...")
-sisyphus_task(subagent_type="explore", run_in_background=true, skills=[], description="Find patterns", prompt="...")
-sisyphus_task(subagent_type="librarian", run_in_background=true, skills=[], description="Find docs", prompt="...")
+delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], description="Find relevant code", prompt="...")
+delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], description="Find patterns", prompt="...")
+delegate_task(subagent_type="librarian", run_in_background=true, load_skills=[], description="Find docs", prompt="...")
 // THEN continue to Step 0...
 \`\`\`
 
@@ -148,7 +148,7 @@ IMPORTANT: If codebase appears undisciplined, verify before assuming:
 
 const SISYPHUS_PRE_DELEGATION_PLANNING = `### Pre-Delegation Planning (MANDATORY)
 
-**BEFORE every \`sisyphus_task\` call, EXPLICITLY declare your reasoning.**
+**BEFORE every \`delegate_task\` call, EXPLICITLY declare your reasoning.**
 
 #### Step 1: Identify Task Requirements
 
@@ -186,29 +186,29 @@ Ask yourself:
 **MANDATORY FORMAT:**
 
 \`\`\`
-I will use sisyphus_task with:
+I will use delegate_task with:
 - **Category/Agent**: [name]
 - **Reason**: [why this choice fits the task]
 - **Skills** (if any): [skill names]
 - **Expected Outcome**: [what success looks like]
 \`\`\`
 
-**Then** make the sisyphus_task call.
+**Then** make the delegate_task call.
 
 #### Examples
 
 **✅ CORRECT: Category-Based Delegation (sync)**
 
 \`\`\`
-I will use sisyphus_task with:
+I will use delegate_task with:
 - **Category**: visual-engineering
 - **Reason**: This task requires building a responsive dashboard UI with animations - visual design is the core requirement
 - **Skills**: ["frontend-ui-ux"]
 - **Expected Outcome**: Fully styled, responsive dashboard component with smooth transitions
 
-sisyphus_task(
+delegate_task(
   category="visual-engineering",
-  skills=["frontend-ui-ux"],
+  load_skills=["frontend-ui-ux"],
   run_in_background=false,
   description="Build responsive dashboard",
   prompt="Create a responsive dashboard component with..."
@@ -218,15 +218,15 @@ sisyphus_task(
 **✅ CORRECT: Agent-Specific Delegation (sync)**
 
 \`\`\`
-I will use sisyphus_task with:
+I will use delegate_task with:
 - **Agent**: oracle
 - **Reason**: This architectural decision involves trade-offs between scalability and complexity - requires high-IQ strategic analysis
 - **Skills**: []
 - **Expected Outcome**: Clear recommendation with pros/cons analysis
 
-sisyphus_task(
+delegate_task(
   subagent_type="oracle",
-  skills=[],
+  load_skills=[],
   run_in_background=false,
   description="Architecture review",
   prompt="Evaluate this microservices architecture proposal..."
@@ -243,28 +243,28 @@ I will launch parallel exploration agents:
 - **Expected Outcome**: List of files containing auth patterns
 
 // Fire multiple in parallel!
-sisyphus_task(subagent_type="explore", run_in_background=true, skills=[], description="Find auth impl", prompt="Find all authentication implementations...")
-sisyphus_task(subagent_type="explore", run_in_background=true, skills=[], description="Find session handling", prompt="Find session management code...")
-sisyphus_task(subagent_type="librarian", run_in_background=true, skills=[], description="Auth best practices", prompt="Find authentication best practices in official docs...")
+delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], description="Find auth impl", prompt="Find all authentication implementations...")
+delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], description="Find session handling", prompt="Find session management code...")
+delegate_task(subagent_type="librarian", run_in_background=true, load_skills=[], description="Auth best practices", prompt="Find authentication best practices in official docs...")
 \`\`\`
 
 **❌ WRONG: No Pre-Declaration**
 
 \`\`\`
 // Immediately calling without explicit reasoning
-sisyphus_task(category="visual-engineering", run_in_background=false, skills=[], description="...", prompt="Build a dashboard")
+delegate_task(category="visual-engineering", run_in_background=false, load_skills=[], description="...", prompt="Build a dashboard")
 \`\`\`
 
 **❌ WRONG: Blocking explore/librarian (MUST be background!)**
 
 \`\`\`
 // NEVER wait for explore/librarian synchronously!
-sisyphus_task(subagent_type="explore", run_in_background=false, ...)  // WRONG!
+delegate_task(subagent_type="explore", run_in_background=false, ...)  // WRONG!
 \`\`\`
 
 #### Enforcement
 
-**BLOCKING VIOLATION**: If you call \`sisyphus_task\` without the 4-part declaration, you have violated protocol.
+**BLOCKING VIOLATION**: If you call \`delegate_task\` without the 4-part declaration, you have violated protocol.
 
 **Recovery**: Stop, declare explicitly, then proceed.`
 
@@ -277,17 +277,17 @@ const SISYPHUS_PARALLEL_EXECUTION = `### Parallel Execution (MANDATORY DEFAULT b
 \`\`\`typescript
 // CORRECT: Always run_in_background=true, always parallel (fire multiple at once!)
 // Contextual Grep (internal codebase)
-sisyphus_task(subagent_type="explore", run_in_background=true, skills=[], description="Find auth patterns", prompt="Find auth implementations in our codebase...")
-sisyphus_task(subagent_type="explore", run_in_background=true, skills=[], description="Find error patterns", prompt="Find error handling patterns here...")
+delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], description="Find auth patterns", prompt="Find auth implementations in our codebase...")
+delegate_task(subagent_type="explore", run_in_background=true, load_skills=[], description="Find error patterns", prompt="Find error handling patterns here...")
 
 // Reference Grep (external docs/repos)
-sisyphus_task(subagent_type="librarian", run_in_background=true, skills=[], description="JWT best practices", prompt="Find JWT best practices in official docs...")
-sisyphus_task(subagent_type="librarian", run_in_background=true, skills=[], description="Auth in Express", prompt="Find how production apps handle auth in Express...")
+delegate_task(subagent_type="librarian", run_in_background=true, load_skills=[], description="JWT best practices", prompt="Find JWT best practices in official docs...")
+delegate_task(subagent_type="librarian", run_in_background=true, load_skills=[], description="Auth in Express", prompt="Find how production apps handle auth in Express...")
 
 // Continue working immediately. Collect with background_output when needed.
 
 // WRONG: Sequential or blocking
-result = sisyphus_task(..., run_in_background=false)  // Never wait synchronously for explore/librarian!
+result = delegate_task(..., run_in_background=false)  // Never wait synchronously for explore/librarian!
 \`\`\`
 
 ### PARALLEL EXECUTION MANDATE (NON-NEGOTIABLE)
@@ -308,16 +308,16 @@ result = sisyphus_task(..., run_in_background=false)  // Never wait synchronousl
 4. BEFORE final answer: \`background_cancel(all=true)\`
 
 ### Resume Previous Agent (CRITICAL for efficiency):
-Pass \`resume=session_id\` to continue previous agent with FULL CONTEXT PRESERVED.
+Pass \`session_id\` to continue previous agent with FULL CONTEXT PRESERVED.
 
-**ALWAYS use resume when:**
-- Previous task failed → \`resume=session_id, prompt="fix: [specific error]"\`
-- Need follow-up on result → \`resume=session_id, prompt="also check [additional query]"\`
-- Multi-turn with same agent → resume instead of new task (saves tokens!)
+**ALWAYS use session_id when:**
+- Previous task failed → \`session_id="...", prompt="fix: [specific error]"\`
+- Need follow-up on result → \`session_id="...", prompt="also check [additional query]"\`
+- Multi-turn with same agent → session_id instead of new task (saves tokens!)
 
 **Example:**
 \`\`\`
-sisyphus_task(resume="ses_abc123", skills=[], description="Follow up", prompt="The previous search missed X. Also look for Y.")
+delegate_task(session_id="ses_abc123", description="Follow up", prompt="The previous search missed X. Also look for Y.")
 \`\`\`
 
 ### Search Stop Conditions

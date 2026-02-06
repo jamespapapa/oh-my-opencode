@@ -26,10 +26,14 @@ export type BeforeSummarizeCallback = (ctx: SummarizeContext) => Promise<void> |
 
 export type GetModelLimitCallback = (providerID: string, modelID: string) => number | undefined
 
+export type RecoveryCallback = (sessionID: string) => void
+
 export interface PreemptiveCompactionOptions {
   experimental?: ExperimentalConfig
   onBeforeSummarize?: BeforeSummarizeCallback
   getModelLimit?: GetModelLimitCallback
+  onCompactionStart?: RecoveryCallback
+  onCompactionComplete?: RecoveryCallback
 }
 
 interface MessageInfo {
@@ -48,6 +52,7 @@ interface MessageWrapper {
 }
 
 const CLAUDE_MODEL_PATTERN = /claude-(opus|sonnet|haiku)/i
+const QWEN_MODEL_PATTERN = /qwen/i
 const CLAUDE_DEFAULT_CONTEXT_LIMIT =
   process.env.ANTHROPIC_1M_CONTEXT === "true" ||
   process.env.VERTEX_ANTHROPIC_1M_CONTEXT === "true"
@@ -55,9 +60,11 @@ const CLAUDE_DEFAULT_CONTEXT_LIMIT =
     : 200_000
 
 const INTERNAL_CONTEXT_LIMIT = 50_000
+const QWEN_CONTEXT_LIMIT = 65_000
 
 function isSupportedModel(modelID: string, providerID?: string): boolean {
   if (providerID === "internal") return true
+  if (QWEN_MODEL_PATTERN.test(modelID)) return true
   return CLAUDE_MODEL_PATTERN.test(modelID)
 }
 
@@ -89,6 +96,8 @@ export function createPreemptiveCompactionHook(
   const experimental = options?.experimental
   const onBeforeSummarize = options?.onBeforeSummarize
   const getModelLimit = options?.getModelLimit
+  const onCompactionStart = options?.onCompactionStart
+  const onCompactionComplete = options?.onCompactionComplete
   // Preemptive compaction is now enabled by default.
   // Backward compatibility: explicit false in experimental config disables the hook.
   const explicitlyDisabled = experimental?.preemptive_compaction === false
@@ -123,11 +132,19 @@ export function createPreemptiveCompactionHook(
     }
 
     const configLimit = getModelLimit?.(providerID, modelID)
-    const defaultLimit = providerID === "internal" ? INTERNAL_CONTEXT_LIMIT : CLAUDE_DEFAULT_CONTEXT_LIMIT
+    const isQwen = QWEN_MODEL_PATTERN.test(modelID)
+    const defaultLimit = providerID === "internal" 
+      ? INTERNAL_CONTEXT_LIMIT 
+      : isQwen 
+        ? QWEN_CONTEXT_LIMIT 
+        : CLAUDE_DEFAULT_CONTEXT_LIMIT
     const contextLimit = configLimit ?? defaultLimit
     const totalUsed = tokens.input + tokens.cache.read + tokens.output
 
-    if (totalUsed < MIN_TOKENS_FOR_COMPACTION) return
+    const minTokens = providerID === "internal" || isQwen 
+      ? Math.floor(contextLimit * 0.5)
+      : MIN_TOKENS_FOR_COMPACTION
+    if (totalUsed < minTokens) return
 
     const usageRatio = totalUsed / contextLimit
 
@@ -143,9 +160,11 @@ export function createPreemptiveCompactionHook(
 
     state.compactionInProgress.add(sessionID)
     state.lastCompactionTime.set(sessionID, Date.now())
+    onCompactionStart?.(sessionID)
 
     if (!providerID || !modelID) {
       state.compactionInProgress.delete(sessionID)
+      onCompactionComplete?.(sessionID)
       return
     }
 
@@ -192,11 +211,13 @@ export function createPreemptiveCompactionHook(
         .catch(() => {})
 
       state.compactionInProgress.delete(sessionID)
+      onCompactionComplete?.(sessionID)
       return
     } catch (err) {
       log("[preemptive-compaction] compaction failed", { sessionID, error: err })
     } finally {
       state.compactionInProgress.delete(sessionID)
+      onCompactionComplete?.(sessionID)
     }
   }
 

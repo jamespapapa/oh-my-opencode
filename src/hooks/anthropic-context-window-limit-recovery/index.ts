@@ -5,9 +5,13 @@ import { parseAnthropicTokenLimitError } from "./parser"
 import { executeCompact, getLastAssistant } from "./executor"
 import { log } from "../../shared/logger"
 
+export type RecoveryCallback = (sessionID: string) => void
+
 export interface AnthropicContextWindowLimitRecoveryOptions {
   experimental?: ExperimentalConfig
   dcpForCompaction?: boolean
+  onCompactionStart?: RecoveryCallback
+  onCompactionComplete?: RecoveryCallback
 }
 
 function createRecoveryState(): AutoCompactState {
@@ -26,6 +30,8 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
   const autoCompactState = createRecoveryState()
   const experimental = options?.experimental
   const dcpForCompaction = options?.dcpForCompaction
+  const onCompactionStart = options?.onCompactionStart
+  const onCompactionComplete = options?.onCompactionComplete
 
   const eventHandler = async ({ event }: { event: { type: string; properties?: unknown } }) => {
     const props = event.properties as Record<string, unknown> | undefined
@@ -82,7 +88,9 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
             ctx.client,
             ctx.directory,
             experimental,
-            dcpForCompaction
+            dcpForCompaction,
+            onCompactionStart,
+            onCompactionComplete
           )
         }, 300)
       }
@@ -142,7 +150,9 @@ export function createAnthropicContextWindowLimitRecoveryHook(ctx: PluginInput, 
         ctx.client,
         ctx.directory,
         experimental,
-        dcpForCompaction
+        dcpForCompaction,
+        onCompactionStart,
+        onCompactionComplete
       )
     }
   }

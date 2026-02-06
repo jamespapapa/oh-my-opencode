@@ -123,23 +123,20 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
       prompt: tool.schema.string().describe("Full detailed prompt for the agent"),
       category: tool.schema.string().optional().describe(`Category name (e.g., ${CATEGORY_EXAMPLES}). Mutually exclusive with subagent_type.`),
       subagent_type: tool.schema.string().optional().describe("Agent name directly (e.g., 'oracle', 'explore'). Mutually exclusive with category."),
-      run_in_background: tool.schema.boolean().describe("Run in background. MUST be explicitly set. Use false for task delegation, true only for parallel exploration."),
-      resume: tool.schema.string().optional().describe("Session ID to resume - continues previous agent session with full context"),
-      skills: tool.schema.array(tool.schema.string()).describe("Array of skill names to prepend to the prompt. Use [] if no skills needed."),
+      run_in_background: tool.schema.boolean().optional().describe("Run in background (default: false). Use false for task delegation, true only for parallel exploration."),
+      resume: tool.schema.string().optional().describe("[DEPRECATED: use session_id] Session ID to resume - continues previous agent session with full context"),
+      session_id: tool.schema.string().optional().describe("Session ID to resume - continues previous agent session with full context"),
+      load_skills: tool.schema.array(tool.schema.string()).optional().describe("Array of skill names to prepend to the prompt (default: [])"),
     },
     async execute(args: SisyphusTaskArgs, toolContext) {
       const ctx = toolContext as ToolContextWithMetadata
-      if (args.run_in_background === undefined) {
-        return `❌ Invalid arguments: 'run_in_background' parameter is REQUIRED. Use run_in_background=false for task delegation, run_in_background=true only for parallel exploration.`
-      }
-      if (args.skills === undefined) {
-        return `❌ Invalid arguments: 'skills' parameter is REQUIRED. Use skills=[] if no skills needed.`
-      }
+      // Default values for optional parameters (Qwen compatibility)
       const runInBackground = args.run_in_background === true
+      const loadSkills = args.load_skills ?? []
 
       let skillContent: string | undefined
-      if (args.skills.length > 0) {
-        const { resolved, notFound } = resolveMultipleSkills(args.skills, { gitMasterConfig })
+      if (loadSkills.length > 0) {
+        const { resolved, notFound } = resolveMultipleSkills(loadSkills, { gitMasterConfig })
         if (notFound.length > 0) {
           const available = createBuiltinSkills().map(s => s.name).join(", ")
           return `❌ Skills not found: ${notFound.join(", ")}. Available: ${available}`
@@ -153,7 +150,7 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
       const sessionAgent = getSessionAgent(ctx.sessionID)
       const parentAgent = ctx.agent ?? sessionAgent ?? firstMessageAgent ?? prevMessage?.agent
       
-      log("[sisyphus_task] parentAgent resolution", {
+      log("[delegate_task] parentAgent resolution", {
         sessionID: ctx.sessionID,
         messageDir,
         ctxAgent: ctx.agent,
@@ -166,11 +163,13 @@ export function createSisyphusTask(options: SisyphusTaskToolOptions): ToolDefini
         ? { providerID: prevMessage.model.providerID, modelID: prevMessage.model.modelID }
         : undefined
 
-      if (args.resume) {
+      // Support both resume (deprecated) and session_id
+      const resumeSessionId = args.session_id || args.resume
+      if (resumeSessionId) {
         if (runInBackground) {
           try {
             const task = await manager.resume({
-              sessionId: args.resume,
+              sessionId: resumeSessionId,
               prompt: args.prompt,
               parentSessionID: ctx.sessionID,
               parentMessageID: ctx.messageID,
@@ -200,7 +199,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         }
 
         const toastManager = getTaskToastManager()
-        const taskId = `resume_sync_${args.resume.slice(0, 8)}`
+        const taskId = `resume_sync_${resumeSessionId.slice(0, 8)}`
         const startTime = new Date()
 
         if (toastManager) {
@@ -214,16 +213,16 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
 
         ctx.metadata?.({
           title: `Resume: ${args.description}`,
-          metadata: { sessionId: args.resume, sync: true },
+          metadata: { sessionId: resumeSessionId, sync: true },
         })
 
         try {
           await client.session.prompt({
-            path: { id: args.resume },
+            path: { id: resumeSessionId },
             body: {
               tools: {
                 task: false,
-                sisyphus_task: false,
+                delegate_task: false,
                 call_omo_agent: true,
               },
               parts: [{ type: "text", text: args.prompt }],
@@ -234,7 +233,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
             toastManager.removeTask(taskId)
           }
           const errorMessage = promptError instanceof Error ? promptError.message : String(promptError)
-          return `❌ Failed to send resume prompt: ${errorMessage}\n\nSession ID: ${args.resume}`
+          return `❌ Failed to send resume prompt: ${errorMessage}\n\nSession ID: ${resumeSessionId}`
         }
 
         // Wait for message stability after prompt completes
@@ -251,7 +250,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
           const elapsed = Date.now() - pollStart
           if (elapsed < MIN_STABILITY_TIME_MS) continue
 
-          const messagesCheck = await client.session.messages({ path: { id: args.resume } })
+          const messagesCheck = await client.session.messages({ path: { id: resumeSessionId } })
           const msgs = ((messagesCheck as { data?: unknown }).data ?? messagesCheck) as Array<unknown>
           const currentMsgCount = msgs.length
 
@@ -265,14 +264,14 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         }
 
         const messagesResult = await client.session.messages({
-          path: { id: args.resume },
+          path: { id: resumeSessionId },
         })
 
         if (messagesResult.error) {
           if (toastManager) {
             toastManager.removeTask(taskId)
           }
-          return `❌ Error fetching result: ${messagesResult.error}\n\nSession ID: ${args.resume}`
+          return `❌ Error fetching result: ${messagesResult.error}\n\nSession ID: ${resumeSessionId}`
         }
 
         const messages = ((messagesResult as { data?: unknown }).data ?? messagesResult) as Array<{
@@ -290,7 +289,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
         }
 
         if (!lastMessage) {
-          return `❌ No assistant response found.\n\nSession ID: ${args.resume}`
+          return `❌ No assistant response found.\n\nSession ID: ${resumeSessionId}`
         }
 
         // Extract text from both "text" and "reasoning" parts (thinking models use "reasoning")
@@ -301,7 +300,7 @@ Use \`background_output\` with task_id="${task.id}" to check progress.`
 
         return `Task resumed and completed in ${duration}.
 
-Session ID: ${args.resume}
+Session ID: ${resumeSessionId}
 
 ---
 
@@ -352,7 +351,7 @@ ${textContent || "(No text output)"}`
           if (!callableNames.includes(agentToUse)) {
             const isPrimaryAgent = agents.some((a) => a.name === agentToUse && a.mode === "primary")
             if (isPrimaryAgent) {
-              return `❌ Cannot call primary agent "${agentToUse}" via sisyphus_task. Primary agents are top-level orchestrators.`
+              return `❌ Cannot call primary agent "${agentToUse}" via delegate_task. Primary agents are top-level orchestrators.`
             }
 
             const availableAgents = callableNames
@@ -378,7 +377,7 @@ ${textContent || "(No text output)"}`
             parentModel,
             parentAgent,
             model: categoryModel,
-            skills: args.skills,
+            skills: loadSkills,
             skillContent: systemContent,
           })
 
@@ -438,7 +437,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
             description: args.description,
             agent: agentToUse,
             isBackground: false,
-            skills: args.skills,
+            skills: loadSkills,
           })
         }
 
@@ -455,7 +454,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
               system: systemContent,
               tools: {
                 task: false,
-                sisyphus_task: false,
+                delegate_task: false,
                 call_omo_agent: true,
               },
               parts: [{ type: "text", text: args.prompt }],
@@ -484,11 +483,11 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
         let stablePolls = 0
         let pollCount = 0
 
-        log("[sisyphus_task] Starting poll loop", { sessionID, agentToUse })
+        log("[delegate_task] Starting poll loop", { sessionID, agentToUse })
 
         while (Date.now() - pollStart < MAX_POLL_TIME_MS) {
           if (ctx.abort?.aborted) {
-            log("[sisyphus_task] Aborted by user", { sessionID })
+            log("[delegate_task] Aborted by user", { sessionID })
             if (toastManager && taskId) toastManager.removeTask(taskId)
             return `Task aborted.\n\nSession ID: ${sessionID}`
           }
@@ -501,7 +500,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
           const sessionStatus = allStatuses[sessionID]
 
           if (pollCount % 10 === 0) {
-            log("[sisyphus_task] Poll status", {
+            log("[delegate_task] Poll status", {
               sessionID,
               pollCount,
               elapsed: Math.floor((Date.now() - pollStart) / 1000) + "s",
@@ -529,7 +528,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
           if (currentMsgCount === lastMsgCount) {
             stablePolls++
             if (stablePolls >= STABILITY_POLLS_REQUIRED) {
-              log("[sisyphus_task] Poll complete - messages stable", { sessionID, pollCount, currentMsgCount })
+              log("[delegate_task] Poll complete - messages stable", { sessionID, pollCount, currentMsgCount })
               break
             }
           } else {
@@ -539,7 +538,7 @@ System notifies on completion. Use \`background_output\` with task_id="${task.id
         }
 
         if (Date.now() - pollStart >= MAX_POLL_TIME_MS) {
-          log("[sisyphus_task] Poll timeout reached", { sessionID, pollCount, lastMsgCount, stablePolls })
+          log("[delegate_task] Poll timeout reached", { sessionID, pollCount, lastMsgCount, stablePolls })
         }
 
         const messagesResult = await client.session.messages({

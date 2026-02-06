@@ -11,28 +11,25 @@ OpenCode 플러그인. 삼성생명 폐쇄망 환경에 최적화된 최소 설�
 - 한국어 응답 지시 포함
 - 50K context window (preemptive-compaction)
 
-## CRITICAL: 1/14 TOOL NAMES
+## TOOL NAMES
 
-**이 버전은 upstream/dev와 도구 이름이 다름!**
-
-| 1/14 (sli-minimal) | upstream/dev | 차이점 |
-|-------------------|--------------|--------|
-| `sisyphus_task` | `delegate_task` | 에이전트 위임 |
-| `skills` parameter | `load_skills` parameter | 스킬 파라미터명 |
-| 11 LSP tools | 6 LSP tools | LSP 도구 수 |
+| Tool | Description |
+|------|-------------|
+| `delegate_task` | 에이전트 위임 |
+| `load_skills` | 스킬 파라미터 (배열) |
 
 ## AVAILABLE TOOLS
 
 ### Agent Delegation
 
 ```typescript
-// sisyphus_task - 에이전트 위임 (delegate_task 아님!)
-sisyphus_task({
+// delegate_task - 에이전트 위임
+delegate_task({
   description: "작업 설명",
   prompt: "상세 프롬프트",
   category: "quick",        // 또는 subagent_type
-  run_in_background: false, // 필수
-  skills: []                // 필수 (load_skills 아님!)
+  run_in_background: false, // 생략 시 false
+  load_skills: []           // 생략 시 []
 })
 ```
 
@@ -96,7 +93,7 @@ sisyphus_task({
 
 | Tool | Description |
 |------|-------------|
-| `sisyphus_task` | 카테고리 기반 위임 |
+| `delegate_task` | 카테고리 기반 위임 |
 | `call_omo_agent` | explore/librarian 에이전트 호출 |
 | `look_at` | 멀티모달 분석 (PDF/이미지) |
 
@@ -116,51 +113,37 @@ sisyphus_task({
 
 ## DELEGATION EXAMPLES
 
-### 올바른 사용법 (1/14 버전)
+### 올바른 사용법
 
 ```typescript
-// 단순 작업 위임
-sisyphus_task({
+// 단순 작업 위임 (최소 파라미터)
+delegate_task({
   description: "타입 에러 수정",
   prompt: "src/auth.ts 파일의 타입 에러를 수정해주세요.",
-  category: "quick",
-  run_in_background: false,
-  skills: []  // 필수!
+  category: "quick"
 })
 
 // 스킬과 함께 위임
-sisyphus_task({
+delegate_task({
   description: "컴포넌트 리팩토링",
   prompt: "Button 컴포넌트를 리팩토링해주세요.",
   category: "visual-engineering",
-  run_in_background: false,
-  skills: ["frontend-ui-ux"]  // load_skills 아님!
+  load_skills: ["frontend-ui-ux"]
 })
 
 // 특정 에이전트 직접 호출
-sisyphus_task({
+delegate_task({
   description: "아키텍처 상담",
   prompt: "현재 인증 구조에 대해 조언해주세요.",
-  subagent_type: "oracle",  // category 대신
-  run_in_background: false,
-  skills: []
+  subagent_type: "oracle"
 })
-```
 
-### 잘못된 사용법 (upstream 문법)
-
-```typescript
-// ❌ WRONG - delegate_task는 없음!
+// 백그라운드 탐색 (병렬)
 delegate_task({
-  category: "quick",
-  load_skills: [],  // 잘못된 파라미터명
-  ...
-})
-
-// ❌ WRONG - load_skills 아님!
-sisyphus_task({
-  ...
-  load_skills: ["git-master"]  // skills로 해야 함
+  description: "코드 탐색",
+  prompt: "인증 관련 코드를 찾아주세요.",
+  subagent_type: "explore",
+  run_in_background: true
 })
 ```
 
@@ -182,32 +165,20 @@ bun run rebuild        # Clean + Build
 bun test               # 테스트 실행
 ```
 
-## SLI-MINIMAL CHANGES
-
-1/14 원본에서 변경된 내용:
-
-| File | Change |
-|------|--------|
-| `src/agents/korean-instruction.ts` | **NEW** - 한국어 응답 지시 |
-| `src/agents/sisyphus.ts` | budgetTokens 8000, 한국어 지시 import |
-| `src/agents/oracle.ts` | budgetTokens 8000 |
-| `src/agents/metis.ts` | budgetTokens 8000 |
-| `src/agents/momus.ts` | budgetTokens 8000 |
-| `src/agents/sisyphus-junior.ts` | budgetTokens 8000 (2곳) |
-| `src/agents/utils.test.ts` | 테스트 기대값 8000 |
-| `src/hooks/preemptive-compaction/index.ts` | internal provider 지원 (50K context) |
-
 ## ANTI-PATTERNS
 
-- **delegate_task 사용**: `sisyphus_task` 사용해야 함
-- **load_skills 파라미터**: `skills` 사용해야 함
-- **run_in_background 생략**: 필수 파라미터
-- **skills 생략**: 필수 파라미터 (빈 배열이라도)
 - **budgetTokens 32000**: Qwen에서 작동 안 함 (8000 사용)
+
+## PARAMETER DEFAULTS
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `run_in_background` | `false` | 동기 실행 |
+| `load_skills` | `[]` | 스킬 없음 |
 
 ## NOTES
 
 - **Build size**: 2.37 MB
-- **Context window**: 50K (internal provider)
+- **Context window**: 50K (internal provider), 65K (Qwen)
 - **Model**: Qwen3-235b
 - **Environment**: 폐쇄망 (closed network)

@@ -267,6 +267,8 @@ async function fixEmptyMessages(
   return fixed;
 }
 
+export type RecoveryCallback = (sessionID: string) => void
+
 export async function executeCompact(
   sessionID: string,
   msg: Record<string, unknown>,
@@ -276,6 +278,8 @@ export async function executeCompact(
   directory: string,
   experimental?: ExperimentalConfig,
   dcpForCompaction?: boolean,
+  onCompactionStart?: RecoveryCallback,
+  onCompactionComplete?: RecoveryCallback,
 ): Promise<void> {
   if (autoCompactState.compactionInProgress.has(sessionID)) {
     await (client as Client).tui
@@ -292,6 +296,7 @@ export async function executeCompact(
     return;
   }
   autoCompactState.compactionInProgress.add(sessionID);
+  onCompactionStart?.(sessionID);
 
   try {
     const errorData = autoCompactState.errorDataBySession.get(sessionID);
@@ -450,6 +455,8 @@ export async function executeCompact(
               directory,
               experimental,
               dcpForCompaction,
+              onCompactionStart,
+              onCompactionComplete,
             );
           }, 500);
           return;
@@ -519,6 +526,8 @@ export async function executeCompact(
               directory,
               experimental,
               dcpForCompaction,
+              onCompactionStart,
+              onCompactionComplete,
             );
           }, cappedDelay);
           return;
@@ -551,5 +560,6 @@ export async function executeCompact(
       .catch(() => {});
   } finally {
     autoCompactState.compactionInProgress.delete(sessionID);
+    onCompactionComplete?.(sessionID);
   }
 }

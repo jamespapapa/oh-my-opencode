@@ -139,12 +139,21 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     },
     contextCollector
   );
+  const backgroundManager = new BackgroundManager(ctx);
+  initTaskToastManager(ctx.client);
+
+  const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
+    ? createTodoContinuationEnforcer(ctx, { backgroundManager })
+    : null;
+
   const anthropicContextWindowLimitRecovery = isHookEnabled(
     "anthropic-context-window-limit-recovery"
   )
     ? createAnthropicContextWindowLimitRecoveryHook(ctx, {
         experimental: pluginConfig.experimental,
         dcpForCompaction: pluginConfig.experimental?.dcp_for_compaction,
+        onCompactionStart: todoContinuationEnforcer?.markRecovering,
+        onCompactionComplete: todoContinuationEnforcer?.markRecoveryComplete,
       })
     : null;
   const compactionContextInjector = isHookEnabled("compaction-context-injector")
@@ -156,6 +165,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         onBeforeSummarize: compactionContextInjector,
         getModelLimit: (providerID, modelID) =>
           getModelLimit(modelCacheState, providerID, modelID),
+        onCompactionStart: todoContinuationEnforcer?.markRecovering,
+        onCompactionComplete: todoContinuationEnforcer?.markRecoveryComplete,
       })
     : null;
   const rulesInjector = isHookEnabled("rules-injector")
@@ -214,14 +225,6 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
     : null;
 
   const taskResumeInfo = createTaskResumeInfoHook();
-
-  const backgroundManager = new BackgroundManager(ctx);
-
-  initTaskToastManager(ctx.client);
-
-  const todoContinuationEnforcer = isHookEnabled("todo-continuation-enforcer")
-    ? createTodoContinuationEnforcer(ctx, { backgroundManager })
-    : null;
 
   if (sessionRecovery && todoContinuationEnforcer) {
     sessionRecovery.setOnAbortCallback(todoContinuationEnforcer.markRecovering);
@@ -305,7 +308,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       ...backgroundTools,
       call_omo_agent: callOmoAgent,
       look_at: lookAt,
-      sisyphus_task: sisyphusTask,
+      delegate_task: sisyphusTask,
       skill: skillTool,
       skill_mcp: skillMcpTool,
       slashcommand: slashcommandTool,
@@ -501,7 +504,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
 
         args.tools = {
           ...(args.tools as Record<string, boolean> | undefined),
-          sisyphus_task: false,
+          delegate_task: false,
           ...(isExploreOrLibrarian ? { call_omo_agent: false } : {}),
         };
       }

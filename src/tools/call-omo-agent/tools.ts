@@ -188,7 +188,7 @@ async function executeSync(
         agent: args.subagent_type,
         tools: {
           task: false,
-          sisyphus_task: false,
+          delegate_task: false,
         },
         parts: [{ type: "text", text: args.prompt }],
       },

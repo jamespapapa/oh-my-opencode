@@ -164,7 +164,7 @@ export class BackgroundManager {
         system: input.skillContent,
         tools: {
           task: false,
-          sisyphus_task: false,
+          delegate_task: false,
           call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],
@@ -249,7 +249,7 @@ export class BackgroundManager {
       parentMessageID: "",
       description: input.description,
       prompt: "",
-      agent: input.agent || "sisyphus_task",
+      agent: input.agent || "delegate_task",
       status: "running",
       startedAt: new Date(),
       progress: {
@@ -326,7 +326,7 @@ export class BackgroundManager {
         agent: existingTask.agent,
         tools: {
           task: false,
-          sisyphus_task: false,
+          delegate_task: false,
           call_omo_agent: true,
         },
         parts: [{ type: "text", text: input.prompt }],

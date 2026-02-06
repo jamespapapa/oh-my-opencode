@@ -1,12 +1,12 @@
 /**
  * Korean Response Instruction for SLI (Samsung Life Insurance) Closed Network
- * Ensures agents respond in Korean when users communicate in Korean.
+ * All responses must be in Korean.
  */
 
 export const KOREAN_RESPONSE_INSTRUCTION = `
-## Language Response Policy
-- If the user communicates in Korean, respond in Korean.
-- Technical terms may remain in English for clarity.
+## Language Response Policy (언어 정책)
+- 반드시 한국어로 응답할 것. ALWAYS respond in Korean.
+- 기술 용어는 영어 유지 가능.
 `
 
 export function getKoreanInstruction(): string {

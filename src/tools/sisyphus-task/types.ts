@@ -5,5 +5,6 @@ export interface SisyphusTaskArgs {
   subagent_type?: string
   run_in_background: boolean
   resume?: string
-  skills: string[]
+  session_id?: string
+  load_skills: string[]
 }
